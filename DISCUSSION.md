@@ -4,6 +4,7 @@ Each entry: date, topic, decision, why, files changed.
 
 | Date | Topic | Decision | Why | Changed |
 | --- | --- | --- | --- | --- |
+| 5 Nov 2026 | F1 CAPTCHA | **Cloudflare Turnstile** (free) on Join and Sign in, enforced by Supabase's Bot and abuse protection. Site key public (`VITE_TURNSTILE_SITE_KEY`); secret key only in the Supabase dashboard; Cloudflare test keys in CI | Closes the gap where PIN guesses skip the Worker lockout; approved new service | specs/F1-login.md, docs/TECH_STACK.md |
 | 5 Nov 2026 | F1 install | Android: in-app **Install app** button (Chrome's install prompt); iPhone: picture guide (Share → Add to Home Screen); "open in Safari" on iPhone Chrome | Apple allows no install button; Android first-time install worked via the Chrome menu | specs/F1-login.md |
 | 5 Nov 2026 | F1 PIN reset | Ryan resets a forgotten PIN in the Supabase SQL editor with a snippet in `docs/ADMIN.md`; no reset button, no Supabase secret key in the Worker | Less can go wrong; least privilege | specs/F1-login.md |
 | 5 Nov 2026 | F1 PIN lockout | Sign-in goes through the Worker (`/api/login`): 5 wrong PINs in 15 min lock that account for 15 min; counters in Postgres behind a narrow guard secret. Known gap: direct calls to Supabase bypass it (CAPTCHA proposed as open question) | 6-digit PINs need a per-account limit | specs/F1-login.md |

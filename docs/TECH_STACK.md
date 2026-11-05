@@ -12,6 +12,7 @@ and Ryan's approval first.
 | Hosting + API | One Cloudflare Worker: static app + `/api/*` | Same origin (no CORS), one deploy, free static traffic |
 | Photo storage | Cloudflare R2, two private buckets (photos, signatures) | 10 GB free, no keys on phones |
 | Login + database | Supabase Auth (phone + 6-digit PIN via hidden login id) and Postgres with row-level security | Free tier, access rules enforced in the database |
+| Bot protection | Cloudflare Turnstile on Join and Sign in, enforced by Supabase's CAPTCHA setting | Free; stops automated PIN guessing even outside the app |
 | Tests | Vitest; Workers test pool; PGlite for database rules | Runs in CI without touching the real database |
 | Lint | ESLint + typescript-eslint | Catch mistakes before review |
 | CI/CD | GitHub Actions → `wrangler deploy` | Only a green build deploys |

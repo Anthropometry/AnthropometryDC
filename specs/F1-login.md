@@ -42,6 +42,9 @@ app to the Home Screen and can open it offline.
    next app open goes to Home.
 8. **Sign-in goes through the Worker** (`POST /api/login`) so wrong PINs can be counted per
    account: 5 wrong PINs within 15 minutes lock that account for 15 minutes (see "PIN lockout").
+9. **Join and Sign in both need a Cloudflare Turnstile check**, which Supabase itself enforces
+   (see "CAPTCHA"). That blocks automated guessing even when someone skips the app and calls
+   Supabase directly.
 
 ## Screens
 
@@ -113,10 +116,34 @@ approves it in chat.
 - The Worker never logs the phone, PIN, login id or tokens.
 - **Limits, stated honestly:**
   - The app uses Supabase's public publishable key, so someone could skip the Worker and send
-    PIN guesses straight to Supabase. The Worker lockout does not see those tries; only Supabase's
-    per-IP rate limits do. See open question 1 for the fix (CAPTCHA enforced by Supabase).
+    PIN guesses straight to Supabase. The Worker lockout does not see those tries, but every one
+    of them still needs a fresh, solved Turnstile check, which makes automated guessing
+    impractical (see "CAPTCHA").
   - Anyone who knows a collector's phone number could lock that collector out for 15 minutes by
     entering wrong PINs. That is accepted for the pilot; Ryan can clear a lock (see "PIN reset").
+
+## CAPTCHA (Cloudflare Turnstile, enforced by Supabase)
+
+- Supabase's **Bot and abuse protection** is switched on with **Turnstile**. Supabase then refuses
+  any sign-up or password sign-in that does not carry a valid, unused Turnstile token, whether it
+  comes from the app, the Worker or a script.
+- The Join and Sign in screens show the Turnstile widget in **managed** mode. Most people see
+  nothing or a single tap box; a hard challenge appears only for suspicious traffic.
+  - Join: the app passes the token to `supabase.auth.signUp` (`options.captchaToken`).
+  - Sign in: the app sends the token with phone + PIN to `/api/login`, and the Worker forwards it
+    to Supabase unchanged (`gotrue_meta_security.captcha_token`). The Worker never reuses or stores tokens.
+- Each token works once. After a wrong PIN the widget resets, so every attempt needs a new check.
+- **Offline:** Join and Sign in need internet anyway; the widget loads only on those screens and
+  is never cached by the service worker. Opening the installed app offline after a past sign-in
+  needs no CAPTCHA.
+- **Keys:**
+  - site key (public): `VITE_TURNSTILE_SITE_KEY`, a GitHub variable;
+  - secret key: pasted by Ryan into the Supabase dashboard only, never in the repo, the Worker or chat;
+  - tests and CI use Cloudflare's published test keys, never the real ones.
+- **Allowed hostnames** on the widget: the `workers.dev` app domain (previews are subdomains of
+  it) and `localhost` for development.
+- **Privacy:** Turnstile runs only on collector Join/Sign in screens, never on participant
+  screens. It checks the browser, not the person, and the app sends it no phone, PIN or name.
 
 ## PIN reset (admin, in Supabase)
 
@@ -141,6 +168,11 @@ Claude Code writes the snippet and its PGlite test but never runs it on the live
   Claude Code never runs it.
 - Worker secret `LOGIN_GUARD_SECRET` (set with `wrangler secret put`) and the same value in
   Supabase Vault. Ryan sets both; the value never appears in chat or the repo.
+- Cloudflare dashboard → **Turnstile** → Add widget "Anthro Collect", managed mode, hostnames as
+  in "CAPTCHA". Copy the site key into the GitHub variable `VITE_TURNSTILE_SITE_KEY`; paste the
+  secret key into Supabase → Authentication → **Bot and abuse protection** → Enable CAPTCHA → Turnstile.
+  Switch this on only once the F1 app code is deployed; before that, the current app has no widget,
+  but it has no sign-in either, so nothing breaks.
 
 ## Acceptance criteria (testable)
 
@@ -161,6 +193,8 @@ Claude Code writes the snippet and its PGlite test but never runs it on the live
 - [ ] 5 wrong PINs within 15 minutes lock that account for 15 minutes, even with the right PIN; a
   different account is not affected; the lock ends on its own after 15 minutes.
 - [ ] `login_guard` functions refuse calls without the guard secret.
+- [ ] Join and Sign in cannot be submitted until Turnstile passes; a sign-up or sign-in sent
+  straight to Supabase without a valid token is refused; a used token is refused a second time.
 - [ ] The admin PIN-reset snippet changes the PIN, ends old sessions and clears the lock.
 - [ ] Android Chrome: the **Install app** button opens the install prompt; after installing, the
   install area is hidden. iPhone Safari: the picture guide shows; iPhone Chrome: "open in Safari".
@@ -191,11 +225,13 @@ Claude Code writes the snippet and its PGlite test but never runs it on the live
 - **Brute force:**
   - invite codes are 8 characters from a 31-character alphabet with no 0/O/1/I/L (≈ 8.5 × 10¹¹ combinations);
   - per-account PIN lockout in the Worker (5 / 15 minutes), plus Supabase's per-IP rate limits;
-  - the direct-to-Supabase gap is open question 1.
+  - Turnstile on every sign-up and sign-in, enforced by Supabase, so calls that skip the Worker
+    still need a solved check each time.
 - **Secrets:**
   - the Supabase secret key is not used anywhere;
   - `LOGIN_GUARD_SECRET` is a Worker secret plus a Vault value, never in code or the repo;
-  - the app uses only the publishable key.
+  - the Turnstile secret key lives only in the Supabase dashboard;
+  - the app uses only public values (Supabase publishable key, Turnstile site key).
 - **Logs:** never log name, phone, PIN, login id, tokens or invite code (lint rule `no-console`
   stays; hook and Worker errors return codes, not inputs).
 - **Deny cases that must be tested:** every "refused", "cannot" and "locked" line in the acceptance criteria.
@@ -206,7 +242,7 @@ Claude Code writes the snippet and its PGlite test but never runs it on the live
 | --- | --- | --- |
 | Weak PIN list, PIN match, display name rules, invite code format and normalising | Vitest (`src/lib`) | both |
 | `signUpWithInvite` sends the hidden id + code + name, never the raw phone; maps hook errors to plain messages | Vitest + fake client | both |
-| Worker `/api/login`: right PIN → session; wrong PIN → generic 401; 5th failure locks; locked → 429 even with right PIN; lock expires; other account unaffected; guard unreachable → 503; bad phone/PIN shape → 400 without calling Supabase | Vitest (Worker) + fakes | both |
+| Worker `/api/login`: missing Turnstile token → 400 without calling Supabase; token forwarded unchanged, never logged; right PIN → session; wrong PIN → generic 401; 5th failure locks; locked → 429 even with right PIN; lock expires; other account unaffected; guard unreachable → 503; bad phone/PIN shape → 400 without calling Supabase | Vitest (Worker) + fakes | both |
 | Hook: valid code + name ok; missing/wrong/revoked/expired/used-up code refused; bad name refused; non-hidden-id email refused | PGlite | both |
 | Trigger: uses up one invite; last-use race (two inserts, one fails); collector row is pending with name; code and name removed from auth metadata | PGlite | both |
 | `login_guard_*` refuse a wrong or missing guard secret; collectors have no access to `login_guard` | PGlite | deny |
@@ -214,7 +250,8 @@ Claude Code writes the snippet and its PGlite test but never runs it on the live
 | Collector cannot call `approve_collector`, update `status`/`role`/`display_name`, read `invite_codes` or other collectors | PGlite | deny |
 | Admin approves → collector can create a practice participant | PGlite | allow |
 | PIN-reset snippet: new PIN works, old sessions gone, lock cleared | PGlite | allow |
-| Join screen blocks submit until fields are valid; wrong-PIN message is the generic one | React Testing Library | both |
+| Join screen blocks submit until fields are valid and Turnstile passed (Cloudflare test keys); wrong-PIN message is the generic one; widget resets after a failure | React Testing Library | both |
+| Service worker never caches the Turnstile script | Vitest (build config) | deny |
 | Install area: button on `beforeinstallprompt`, iPhone guide on iOS Safari, "open in Safari" on iOS Chrome, hidden in standalone | React Testing Library | both |
 | Welcome → Waiting → Home routing by status | React Testing Library | both |
 
@@ -224,7 +261,8 @@ Run on an Android low-cost phone, an Android mid-range phone and an iPhone.
 
 1. Ryan creates an invite code "Pilot test", max uses 2, on the admin screen. Write the code down.
 2. On Android, open the preview link in Chrome → **Join with invite code** → enter the code, your
-   name, your phone, PIN 482916 twice → you see "Waiting for approval" with your name.
+   name, your phone, PIN 482916 twice → complete the Turnstile check if it asks → you see
+   "Waiting for approval" with your name.
 3. Try **Join** again on the iPhone with a wrong code (e.g. AAAA2222) → plain "code is not right" message.
 4. On the admin screen, check the Android phone shows with your name, approve it → on Android tap **Check again** → Home opens.
 5. Sign out. Sign in with the right phone and PIN 000000 → "Phone number or PIN is not right."
@@ -242,15 +280,11 @@ Run on an Android low-cost phone, an Android mid-range phone and an iPhone.
 - **PIN reset by Ryan in the Supabase SQL editor**, using the snippet in `docs/ADMIN.md`; no reset
   button and no Supabase secret key in the Worker.
 - **Install button on Android** plus an **iPhone picture guide**.
+- **Cloudflare Turnstile CAPTCHA** on Join and Sign in, enforced by Supabase.
 
 ## Open questions for Ryan
 
-1. **CAPTCHA to close the direct-to-Supabase gap.** Supabase can require a Cloudflare Turnstile
-   check (free, usually invisible, run by Cloudflare, which we already use) on every sign-in and
-   sign-up. Supabase itself enforces it, so PIN guessing that skips the Worker is blocked too. It
-   needs internet at sign-in, which sign-in needs anyway. It is a new service setting, so it needs
-   your OK. Add it?
-2. **Invite code defaults.** Are max 10 uses and expiry after 14 days OK as defaults?
-3. **Free plan check.** Please confirm the Before User Created hook is offered on your Supabase
+1. **Invite code defaults.** Are max 10 uses and expiry after 14 days OK as defaults?
+2. **Free plan check.** Please confirm the Before User Created hook is offered on your Supabase
    plan (Authentication → Hooks). If it isn't, the trigger alone enforces the code, but a refused
    sign-up then shows a generic "could not join" message.

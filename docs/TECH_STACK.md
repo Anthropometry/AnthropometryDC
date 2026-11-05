@@ -25,8 +25,9 @@ domain is reserved and can never receive mail. Supabase's native phone (SMS) pro
 used: real SMS codes need a paid provider.
 
 Supabase dashboard settings this relies on: Email provider on, **Confirm email off**,
-**Allow new users to sign up off**, minimum password length 6. Accounts are created only by the
-admin script with the secret key from `.env.admin` on Ryan's laptop.
+**Allow new users to sign up on**, **Before User Created hook** → `public.hook_before_user_created`
+(checks the invite code), minimum password length 6. Collectors self sign up with an invite code
+and wait for Ryan's approval (`specs/F1-login.md`). The Supabase secret key is never in the app or Worker.
 
 ## Not allowed
 

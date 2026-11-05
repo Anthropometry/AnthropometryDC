@@ -4,6 +4,8 @@ Each entry: date, topic, decision, why, files changed.
 
 | Date | Topic | Decision | Why | Changed |
 | --- | --- | --- | --- | --- |
+| 5 Nov 2026 | Onboarding | Collectors **self sign up with an invite code**, then **Ryan approves** them before they can see or save anything. Replaces "accounts made only by the admin script". Login stays phone + 6-digit PIN with the hidden login id; still no email | North Anchor decision by Ryan | specs/F1-login.md (draft), CLAUDE.md, docs/TECH_STACK.md, docs/SECURITY.md, docs/ROADMAP.md |
+| 5 Nov 2026 | Config | Supabase URL + publishable key set as `VITE_SUPABASE_*` (Vite only exposes `VITE_` names, so the `NEXT_PUBLIC_` names were not used) in `.env.local` / `.dev.vars` (git-ignored) and `wrangler.jsonc` vars | Publishable key is public by design | wrangler.jsonc |
 | 5 Nov 2026 | Database | Ryan approved `supabase db push` of `20261105000000_init.sql`; Ryan types the DB password himself, never in chat | Policy §7–8 | supabase/ |
 | 5 Nov 2026 | Tests | Database rules tested on PGlite with the real migration files; deny cases for every rule | Never touch real data in CI | supabase/tests/rls.test.ts |
 | 5 Nov 2026 | Tooling | ESLint + typescript-eslint, `@vitest/coverage-v8`, `@electric-sql/pglite`, `supabase` CLI added as dev tools; TypeScript pinned to ~6.0 (typescript-eslint doesn't support 7 yet) | Needed by the CI steps in the North Anchor | package.json |
@@ -28,10 +30,8 @@ Each entry: date, topic, decision, why, files changed.
 
 ## Open questions for Ryan
 
-1. **Supabase Auth dashboard settings** for the hidden login id: Email provider on, Confirm email
-   off, Allow new users to sign up off, minimum password length 6. Ryan to set (Claude Code has no
-   dashboard access).
-2. **Admin script** to create collectors (and Ryan as admin) with the secret key from `.env.admin`:
-   write it in F1 or as an M0 follow-up?
-3. **Workers test pool**: Worker tests run on plain Vitest for now; switch to
+1. **F1 spec open questions** (name at sign-up, PIN lockout, forgotten PIN, invite defaults,
+   hook on free plan): see `specs/F1-login.md`. Supabase Auth settings change with F1: sign-ups
+   **on** (guarded by the invite hook), Confirm email off.
+2. **Workers test pool**: Worker tests run on plain Vitest for now; switch to
    `@cloudflare/vitest-pool-workers` when it supports Vitest 5?

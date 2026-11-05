@@ -20,7 +20,8 @@ work this way.
 - **Login:** phone number + 6-digit PIN. **No email anywhere** — no email field, login, recovery
   or participant email. In code the phone becomes a hidden, email-shaped login id
   (`233XXXXXXXXX@phone.anthro-collect.invalid`, see `src/lib/phone.ts`) that is never shown and
-  never mailed. Accounts are created only by Ryan's admin script; the app has no sign-up.
+  never mailed. Collectors **self sign up with an invite code** and can do nothing until
+  **Ryan approves** them (see `specs/F1-login.md`).
 - **Sharing:** PWA link for Android (Chrome) and iPhone (Safari), Add to Home Screen.
   No app store, no APK.
 - **Stack:** see [docs/TECH_STACK.md](docs/TECH_STACK.md). One PWA, one Cloudflare Worker

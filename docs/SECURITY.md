@@ -21,8 +21,14 @@ pull request reports them, and CI blocks a merge when a check fails.
 ## Login without email
 
 The phone number is mapped in code to a hidden login id on the reserved `.invalid` domain, so no
-mail can ever be sent to it. Sign-ups are off in Supabase; only the admin script (secret key, on
-Ryan's laptop) creates accounts. Resetting a collector's PIN revokes their sessions.
+mail can ever be sent to it. Collectors self sign up with an invite code. A Postgres hook refuses
+any sign-up without a valid code or with a non-hidden-id email; new accounts start **pending** and
+row-level security denies them everything until Ryan approves (`specs/F1-login.md`). Resetting a
+collector's PIN revokes their sessions.
+
+Threat added by open sign-up: **someone signs up without being invited**. They are refused by the
+invite hook (and again by the trigger); even with a leaked code they stay pending, with no data
+access, until Ryan approves.
 
 ## Threat model (reviewed each milestone)
 

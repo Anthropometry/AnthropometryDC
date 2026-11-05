@@ -17,9 +17,9 @@
     { "binding": "PHOTOS", "bucket_name": "anthro-collect-photos" },
     { "binding": "SIGNATURES", "bucket_name": "anthro-collect-signatures" }
   ],
-  // Public values only. Set real ones here or in .dev.vars for local runs.
+  // Public values only (the publishable key is safe to ship). Never put the secret key here.
   "vars": {
-    "SUPABASE_URL": "https://YOUR-PROJECT.supabase.co",
-    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_xxx"
+    "SUPABASE_URL": "https://vafxojfaylrlgupvahdo.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_m63_dG7p7oOIpnPqXwJjNQ_pAZ_hMzl"
   }
 }

@@ -4,6 +4,9 @@ Each entry: date, topic, decision, why, files changed.
 
 | Date | Topic | Decision | Why | Changed |
 | --- | --- | --- | --- | --- |
+| 5 Nov 2026 | F1 guard secret | The PIN-lockout guard secret is a Worker secret; the database stores only its **SHA-256 hash** in `private.settings` (instead of Supabase Vault as first written in the spec). `scripts/make-guard-secret.mjs` makes it | Nothing reversible in the database, and testable on PGlite | specs/F1-login.md, migration, docs/ADMIN.md |
+| 5 Nov 2026 | F1 test tools | `@testing-library/react`, `@testing-library/dom`, `jsdom` added (dev only) for the screen tests TESTING.md already lists; no jest-dom | Needed to test the Join/Sign in/Install screens | package.json |
+| 5 Nov 2026 | F1 approved | Ryan approved `specs/F1-login.md` | All open questions answered | specs/F1-login.md |
 | 5 Nov 2026 | F1 hook | Supabase's Before User Created hook is on the free plan (Auth Hooks, Beta); F1 uses it, with the database trigger kept as a backup | Ryan checked the dashboard; Beta features can change | specs/F1-login.md |
 | 5 Nov 2026 | F1 invite defaults | Invite codes default to **10 uses** and **14 days** to expiry, changeable per code; a use = one collector joining (participants never use codes) | Covers one training batch; limits a leaked code | specs/F1-login.md |
 | 5 Nov 2026 | F1 CAPTCHA | **Cloudflare Turnstile** (free) on Join and Sign in, enforced by Supabase's Bot and abuse protection. Site key public (`VITE_TURNSTILE_SITE_KEY`); secret key only in the Supabase dashboard; Cloudflare test keys in CI | Closes the gap where PIN guesses skip the Worker lockout; approved new service | specs/F1-login.md, docs/TECH_STACK.md |

@@ -1,6 +1,6 @@
 # F1: Login, sign-up with invite code, and install
 
-**Status:** draft <!-- draft | approved | built | verified — only Ryan sets "approved" -->
+**Status:** approved (Ryan, 5 Nov 2026) <!-- draft | approved | built | verified — only Ryan sets "approved" -->
 **Milestone:** M1
 **Branch:** `f1-login`
 
@@ -111,7 +111,7 @@ approves it in chat.
 - `login_guard` is reachable only through two security-definer functions,
   `login_guard_check(key, guard_secret)` and `login_guard_record(key, ok, guard_secret)`. They
   refuse calls without the right `guard_secret`.
-  - The secret is a random value kept as a Cloudflare Worker secret and in Supabase Vault. It can
+  - The secret is a random value kept as a Cloudflare Worker secret; the database stores only its SHA-256 hash (`private.settings`). It can
     only touch lockout counters; it is **not** the Supabase secret key.
 - The Worker never logs the phone, PIN, login id or tokens.
 - **Limits, stated honestly:**
@@ -167,7 +167,7 @@ Claude Code writes the snippet and its PGlite test but never runs it on the live
   SQL line in the Supabase SQL editor that sets his row to `role = 'admin', status = 'approved'`.
   Claude Code never runs it.
 - Worker secret `LOGIN_GUARD_SECRET` (set with `wrangler secret put`) and the same value in
-  Supabase Vault. Ryan sets both; the value never appears in chat or the repo.
+  its SHA-256 hash in `private.settings` (`node scripts/make-guard-secret.mjs`). Ryan sets both; the value never appears in chat or the repo.
 - Cloudflare dashboard → **Turnstile** → Add widget "Anthro Collect", managed mode, hostnames as
   in "CAPTCHA". Copy the site key into the GitHub variable `VITE_TURNSTILE_SITE_KEY`; paste the
   secret key into Supabase → Authentication → **Bot and abuse protection** → Enable CAPTCHA → Turnstile.
@@ -229,7 +229,7 @@ Claude Code writes the snippet and its PGlite test but never runs it on the live
     still need a solved check each time.
 - **Secrets:**
   - the Supabase secret key is not used anywhere;
-  - `LOGIN_GUARD_SECRET` is a Worker secret plus a Vault value, never in code or the repo;
+  - `LOGIN_GUARD_SECRET` is a Worker secret; the database keeps only its hash; never in code or the repo;
   - the Turnstile secret key lives only in the Supabase dashboard;
   - the app uses only public values (Supabase publishable key, Turnstile site key).
 - **Logs:** never log name, phone, PIN, login id, tokens or invite code (lint rule `no-console`

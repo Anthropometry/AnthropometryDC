@@ -5,13 +5,18 @@
  * Every upload re-checks, in order: route and slot, login token, participant
  * ownership (via Supabase row-level security), content type, size, and file magic bytes.
  * Any failed check denies. Nothing about the person or the image is logged.
+ * POST /api/login (phone + PIN with per-account lockout) lives in login.ts.
  */
+
+import { handleLogin } from './login'
 
 export interface Env {
   PHOTOS: R2Bucket
   SIGNATURES: R2Bucket
   SUPABASE_URL: string
   SUPABASE_PUBLISHABLE_KEY: string
+  /** Secret (wrangler secret put). Only touches PIN-lockout counters; not the Supabase secret key. */
+  LOGIN_GUARD_SECRET?: string
 }
 
 type Kind = 'photos' | 'signatures'
@@ -124,6 +129,8 @@ export default {
         ? json(200, { ok: true })
         : json(405, { error: 'method_not_allowed' })
     }
+
+    if (pathname === '/api/login') return handleLogin(request, env)
 
     const m = pathname.match(/^\/api\/(photos|signatures)\/([^/]+)\/([^/]+)$/)
     if (m) {

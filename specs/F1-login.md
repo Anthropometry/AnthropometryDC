@@ -77,8 +77,8 @@ Every screen shows "Ashesi University · Student research project".
 6. **Admin: Pending collectors** (admin role only):
    - list of pending collectors (**name**, phone, invite code label, joined time) with **Approve** / **Reject**;
    - list of approved collectors with **Disable**;
-   - **Invite codes:** create (label, max uses, expiry date), see uses, revoke. The code is shown
-     once at creation; after that only its label.
+   - **Invite codes:** create (label, max uses default 10, expiry default 14 days), see uses,
+     revoke. The code is shown once at creation; after that only its label.
 7. **Sign out:** in a small menu. It warns if items are still waiting to sync (F7 fills this in later).
 
 ## Data written
@@ -86,7 +86,7 @@ Every screen shows "Ashesi University · Student research project".
 | Where | Fields | When |
 | --- | --- | --- |
 | Supabase `auth.users` (managed by Supabase) | hidden login id, PIN (hashed by Supabase) | Join |
-| `public.invite_codes` (new) | `id`, `code_hash` (SHA-256 of the upper-cased code), `label`, `max_uses`, `uses`, `expires_at`, `revoked`, `created_by`, `created_at` | Admin creates/revokes; trigger increments `uses` |
+| `public.invite_codes` (new) | `id`, `code_hash` (SHA-256 of the upper-cased code), `label`, `max_uses` (default 10), `uses`, `expires_at` (default now + 14 days), `revoked`, `created_by`, `created_at` | Admin creates/revokes; trigger increments `uses` |
 | `public.collectors` (changed) | new: `display_name` (collector's own name, 2–60 chars), `status` (`pending` / `approved` / `rejected` / `disabled`, default `pending`), `invite_code_id`, `decided_by`, `decided_at` | Created by trigger at Join; status set by admin |
 | `public.login_guard` (new) | `login_key` (SHA-256 of the hidden login id), `failures`, `window_start`, `locked_until` | Worker, on each sign-in attempt |
 | Phone (localStorage via supabase-js) | Supabase session (access + refresh token) | Sign in |
@@ -281,10 +281,12 @@ Run on an Android low-cost phone, an Android mid-range phone and an iPhone.
   button and no Supabase secret key in the Worker.
 - **Install button on Android** plus an **iPhone picture guide**.
 - **Cloudflare Turnstile CAPTCHA** on Join and Sign in, enforced by Supabase.
+- **Invite code defaults:** max **10 uses** (10 collectors can join with one code) and expiry
+  **14 days** after creation. Both can be changed per code when it is created; a code can be
+  revoked at any time. A "use" is one collector joining; registering participants never uses a code.
+- **Before User Created hook** is offered on the free plan (Authentication → Auth Hooks, marked
+  Beta). The spec uses it; the trigger stays as a backup in case the Beta hook changes or is switched off.
 
 ## Open questions for Ryan
 
-1. **Invite code defaults.** Are max 10 uses and expiry after 14 days OK as defaults?
-2. **Free plan check.** Please confirm the Before User Created hook is offered on your Supabase
-   plan (Authentication → Hooks). If it isn't, the trigger alone enforces the code, but a refused
-   sign-up then shows a generic "could not join" message.
+None. Ready for approval.

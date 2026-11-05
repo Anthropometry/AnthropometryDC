@@ -1,5 +1,6 @@
-# Anthro Collect deploy — on merge to main: the same checks as CI, then wait for Ryan's
-# approval (the `production` environment's required reviewer), then `wrangler deploy`.
+# Anthro Collect deploy — on merge to main: the same checks as CI, then wait for approval
+# (the `production` environment's required reviewer), then `wrangler deploy` and a health check.
+# GitHub lists this workflow in the Actions sidebar once this file is on main.
 name: deploy
 
 on:
@@ -13,14 +14,23 @@ concurrency:
   group: deploy-production
   cancel-in-progress: false
 
+defaults:
+  run:
+    shell: bash # bash -eo pipefail: a failing command in a pipe fails the step
+
 jobs:
   checks:
     uses: ./.github/workflows/ci.yml
+    # ci.yml's preview job asks for pull-requests: write. GitHub refuses to start a caller that
+    # grants less, even though preview is skipped on push. Nothing here comments on a PR.
+    permissions:
+      contents: read
+      pull-requests: write
 
   deploy:
     needs: checks
     runs-on: ubuntu-latest
-    environment: production # requires Ryan's approval
+    environment: production # requires the required reviewer's approval
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -40,10 +50,10 @@ jobs:
         id: deploy
         run: |
           npx wrangler deploy 2>&1 | tee deploy.log
-          url=$(grep -oE 'https://[^ ]+\.workers\.dev' deploy.log | head -1)
+          url=$(grep -oE 'https://[^ ]+\.workers\.dev' deploy.log | head -1 || true)
+          if [ -z "$url" ]; then echo "::error::wrangler deploy printed no workers.dev URL"; exit 1; fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
       - name: Health check
-        if: steps.deploy.outputs.url != ''
         run: |
           for i in 1 2 3 4 5; do
             if curl -sSf "${{ steps.deploy.outputs.url }}/api/health" | grep -q '"ok":true'; then

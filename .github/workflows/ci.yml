@@ -17,6 +17,10 @@ concurrency:
 env:
   GITLEAKS_VERSION: 8.21.2
 
+defaults:
+  run:
+    shell: bash # bash -eo pipefail: a failing command in a pipe fails the step
+
 jobs:
   ci:
     runs-on: ubuntu-latest

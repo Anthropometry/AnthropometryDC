@@ -4,6 +4,7 @@ Each entry: date, topic, decision, why, files changed.
 
 | Date | Topic | Decision | Why | Changed |
 | --- | --- | --- | --- | --- |
+| 5 Nov 2026 | Database | Ryan approved `supabase db push`; `20261105120000_f1_onboarding.sql` applied to `vafxojfaylrlgupvahdo`. Local and remote migration history match (2 migrations). No table data read | Policy §7 | supabase/migrations |
 | 5 Nov 2026 | F1 guard secret | The PIN-lockout guard secret is a Worker secret; the database stores only its **SHA-256 hash** in `private.settings` (instead of Supabase Vault as first written in the spec). `scripts/make-guard-secret.mjs` makes it | Nothing reversible in the database, and testable on PGlite | specs/F1-login.md, migration, docs/ADMIN.md |
 | 5 Nov 2026 | F1 test tools | `@testing-library/react`, `@testing-library/dom`, `jsdom` added (dev only) for the screen tests TESTING.md already lists; no jest-dom | Needed to test the Join/Sign in/Install screens | package.json |
 | 5 Nov 2026 | F1 approved | Ryan approved `specs/F1-login.md` | All open questions answered | specs/F1-login.md |

@@ -8,7 +8,6 @@
 --   * No real (non-practice) participant until an admin turns collection_open on after IRB approval.
 --   * No self-promotion to admin; no deletes by collectors; nothing for anonymous users.
 
-create extension if not exists pgcrypto;
 
 -- ---------------------------------------------------------------- settings
 create table public.app_settings (

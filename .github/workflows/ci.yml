@@ -1,0 +1,103 @@
+# Anthro Collect CI — runs on every pull request, and is reused by deploy.yml.
+# Order: install → typecheck → lint → unit tests with coverage → database-rule tests
+#        → npm audit (high/critical fail) → secret scan (gitleaks) → build → preview link on the PR.
+name: ci
+
+on:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GITLEAKS_VERSION: 8.21.2
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # full history for the secret scan
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit + Worker tests with coverage (80% gate)
+        run: npx vitest run --coverage src worker
+
+      - name: Database-rule tests (PGlite, in memory)
+        run: npm run test:db
+
+      - name: npm audit (high and critical fail)
+        run: npm audit --audit-level=high
+
+      - name: Secret scan (gitleaks)
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" detect --source . --redact --verbose --exit-code 1
+
+      - name: Build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: npm run build
+
+  preview:
+    # Only for pull requests from this repository (forks never get the Cloudflare token).
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: npm run build
+      - name: Upload preview version (does not touch production)
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        id: upload
+        run: |
+          npx wrangler versions upload --preview-alias "pr-${{ github.event.pull_request.number }}" 2>&1 | tee upload.log
+          url=$(grep -i 'alias url' upload.log | grep -oE 'https://[^ ]+' | tail -1)
+          [ -n "$url" ] || url=$(grep -i 'preview url' upload.log | grep -oE 'https://[^ ]+' | tail -1)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Post preview link on the PR
+        if: steps.upload.outputs.url != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" --edit-last --create-if-none \
+            --body "Preview for phone testing: ${{ steps.upload.outputs.url }}"
+      - name: No Cloudflare token yet
+        if: env.CLOUDFLARE_API_TOKEN == ''
+        run: echo "::notice::CLOUDFLARE_API_TOKEN is not set, so no preview was uploaded. See docs/NORTH_ANCHOR.md → Your one-time clicks."

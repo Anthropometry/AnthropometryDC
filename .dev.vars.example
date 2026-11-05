@@ -1,0 +1,3 @@
+# Worker vars for `wrangler dev`. Copy to .dev.vars. Public values only; no secret key.
+SUPABASE_URL=https://YOUR-PROJECT.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxx

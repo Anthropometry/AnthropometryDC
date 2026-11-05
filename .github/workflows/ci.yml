@@ -91,9 +91,19 @@ jobs:
         if: env.CLOUDFLARE_API_TOKEN != ''
         id: upload
         run: |
-          npx wrangler versions upload --preview-alias "pr-${{ github.event.pull_request.number }}" 2>&1 | tee upload.log
-          url=$(grep -i 'alias url' upload.log | grep -oE 'https://[^ ]+' | tail -1)
-          [ -n "$url" ] || url=$(grep -i 'preview url' upload.log | grep -oE 'https://[^ ]+' | tail -1)
+          status=0
+          npx wrangler versions upload --preview-alias "pr-${{ github.event.pull_request.number }}" 2>&1 | tee upload.log || status=$?
+          if [ "$status" -ne 0 ]; then
+            # Before the first production deploy the Worker does not exist, so there is
+            # nothing to preview yet. Only that case is a notice; any other error fails.
+            if grep -q 'Worker that does not yet exist' upload.log; then
+              echo "::notice::No preview yet: the Worker is created by the first deploy from main."
+              exit 0
+            fi
+            exit "$status"
+          fi
+          url=$(grep -i 'alias url' upload.log | grep -oE 'https://[^ ]+' | tail -1 || true)
+          [ -n "$url" ] || url=$(grep -i 'preview url' upload.log | grep -oE 'https://[^ ]+' | tail -1 || true)
           echo "url=$url" >> "$GITHUB_OUTPUT"
       - name: Post preview link on the PR
         if: steps.upload.outputs.url != ''

@@ -4,6 +4,7 @@ Each entry: date, topic, decision, why, files changed.
 
 | Date | Topic | Decision | Why | Changed |
 | --- | --- | --- | --- | --- |
+| 5 Nov 2026 | Secret scan | `.gitleaks.toml`: default rules + a rule that fails on Supabase `sb_secret_` keys; only `sb_publishable_` values are allowed (public by design) | CI flagged the publishable key in wrangler.jsonc | .gitleaks.toml |
 | 5 Nov 2026 | Onboarding | Collectors **self sign up with an invite code**, then **Ryan approves** them before they can see or save anything. Replaces "accounts made only by the admin script". Login stays phone + 6-digit PIN with the hidden login id; still no email | North Anchor decision by Ryan | specs/F1-login.md (draft), CLAUDE.md, docs/TECH_STACK.md, docs/SECURITY.md, docs/ROADMAP.md |
 | 5 Nov 2026 | Config | Supabase URL + publishable key set as `VITE_SUPABASE_*` (Vite only exposes `VITE_` names, so the `NEXT_PUBLIC_` names were not used) in `.env.local` / `.dev.vars` (git-ignored) and `wrangler.jsonc` vars | Publishable key is public by design | wrangler.jsonc |
 | 5 Nov 2026 | Database | Ryan approved `supabase db push` of `20261105000000_init.sql`; Ryan types the DB password himself, never in chat | Policy §7–8 | supabase/ |

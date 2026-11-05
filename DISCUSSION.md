@@ -4,6 +4,7 @@ Each entry: date, topic, decision, why, files changed.
 
 | Date | Topic | Decision | Why | Changed |
 | --- | --- | --- | --- | --- |
+| 5 Nov 2026 | Secret scan | `.gitleaks.toml`: default rules + a rule that fails on Supabase `sb_secret_` keys; only `sb_publishable_` values are allowed (public by design) | CI flagged the publishable key in wrangler.jsonc | .gitleaks.toml |
 | 5 Nov 2026 | Database | Ryan approved `supabase db push` of `20261105000000_init.sql`; Ryan types the DB password himself, never in chat | Policy §7–8 | supabase/ |
 | 5 Nov 2026 | Tests | Database rules tested on PGlite with the real migration files; deny cases for every rule | Never touch real data in CI | supabase/tests/rls.test.ts |
 | 5 Nov 2026 | Tooling | ESLint + typescript-eslint, `@vitest/coverage-v8`, `@electric-sql/pglite`, `supabase` CLI added as dev tools; TypeScript pinned to ~6.0 (typescript-eslint doesn't support 7 yet) | Needed by the CI steps in the North Anchor | package.json |

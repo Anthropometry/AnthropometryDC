@@ -1,0 +1,17 @@
+# Secret scan config (Anthro Collect, Ashesi University student research project).
+# Uses all of gitleaks' default rules, plus one stricter rule for Supabase secret keys.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "supabase-secret-key"
+description = "Supabase secret (server) key - must never be committed"
+regex = '''sb_secret_[A-Za-z0-9_\-]{16,}'''
+keywords = ["sb_secret_"]
+
+# Supabase *publishable* keys are public by design (they ship in the app). Only that exact
+# prefix is allowed; secret keys and every other finding still fail the build.
+[allowlist]
+description = "Supabase publishable keys are public"
+regexes = ['''^sb_publishable_[A-Za-z0-9_\-]+$''']

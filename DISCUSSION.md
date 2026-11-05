@@ -4,7 +4,13 @@ Each entry: date, topic, decision, why, files changed.
 
 | Date | Topic | Decision | Why | Changed |
 | --- | --- | --- | --- | --- |
-| 5 Nov 2026 | Repo | Initial scaffold committed and pushed straight to `main` (one-time); later work uses branches + PRs | Empty repo needs a first commit | — |
+| 5 Nov 2026 | Database | Ryan approved `supabase db push` of `20261105000000_init.sql`; Ryan types the DB password himself, never in chat | Policy §7–8 | supabase/ |
+| 5 Nov 2026 | Tests | Database rules tested on PGlite with the real migration files; deny cases for every rule | Never touch real data in CI | supabase/tests/rls.test.ts |
+| 5 Nov 2026 | Tooling | ESLint + typescript-eslint, `@vitest/coverage-v8`, `@electric-sql/pglite`, `supabase` CLI added as dev tools; TypeScript pinned to ~6.0 (typescript-eslint doesn't support 7 yet) | Needed by the CI steps in the North Anchor | package.json |
+| 5 Nov 2026 | Docs | Created POLICY.md, docs/MISSION, TECH_STACK, ROADMAP, SECURITY, TESTING, specs/_TEMPLATE, PR template, ci.yml, deploy.yml from North Anchor v2; CLAUDE.md is now the short entry point | Spec files are the source of truth | those files |
+| 5 Nov 2026 | Process | Branches and PRs only, no exceptions; the earlier "one-time push to main" exception is removed | Separation of duties | CLAUDE.md, POLICY.md |
+| 5 Nov 2026 | Repo | Home is `Anthropometry/AnthropometryDC`; `Patience3/AnthropometryDC` was a mistake (Ryan handles it) | Correct owner | git remote |
+| 5 Nov 2026 | Login | Hidden login id: phone → `233XXXXXXXXX@phone.anthro-collect.invalid`, built in code, never shown, never mailed. Supabase native phone/SMS login not used | Free; no SMS provider needed | src/lib/phone.ts, src/lib/auth.ts |
 | 5 Nov 2026 | Login | Phone number + 6-digit PIN only; no email anywhere (collectors or participants) | Many collectors have no email; SMS codes cost money | CLAUDE.md |
 | 5 Nov 2026 | Sharing | PWA link for Android and iPhone; no app store and no APK (replaces "optional APK" of 1 Nov) | One link for every phone, no store review | CLAUDE.md |
 | 5 Nov 2026 | Framing | Everything framed as a student research project at Ashesi University | Honest consent keeps the data reusable | CLAUDE.md, app shell |
@@ -22,8 +28,10 @@ Each entry: date, topic, decision, why, files changed.
 
 ## Open questions for Ryan
 
-1. **Supabase phone login without SMS.** Supabase's native phone + password login needs the Phone
-   provider switched on, which may ask for an SMS provider even though we never send codes. The
-   scaffold uses native phone login. If the dashboard won't enable it for free, the fallback is the
-   plan's "internal username": the phone number is turned into a never-mailed login id inside the
-   code (never shown, no email field). Which do you want?
+1. **Supabase Auth dashboard settings** for the hidden login id: Email provider on, Confirm email
+   off, Allow new users to sign up off, minimum password length 6. Ryan to set (Claude Code has no
+   dashboard access).
+2. **Admin script** to create collectors (and Ryan as admin) with the secret key from `.env.admin`:
+   write it in F1 or as an M0 follow-up?
+3. **Workers test pool**: Worker tests run on plain Vitest for now; switch to
+   `@cloudflare/vitest-pool-workers` when it supports Vitest 5?

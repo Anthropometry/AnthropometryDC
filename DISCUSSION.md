@@ -4,6 +4,8 @@ Each entry: date, topic, decision, why, files changed.
 
 | Date | Topic | Decision | Why | Changed |
 | --- | --- | --- | --- | --- |
+| 5 Nov 2026 | Authorship | All 7 existing commits rewritten so author and committer are `Patience Sombang <92175572+Patience3@users.noreply.github.com>` (GitHub no-reply address; no personal email in history). This is the repo's local git identity from now on. `main`, `setup` and `f1-login` force-pushed once, as an approved exception to "never push to main". File contents unchanged | Repo is going public; authorship belongs to Patience | git history, README.md |
+| 5 Nov 2026 | README | Short README: what it is, privacy note, run locally, CI/CD pointer, links to POLICY/ROADMAP/SECURITY, contact via GitHub profile only. No keys, project refs or account IDs | Prepare for making the repo public | README.md |
 | 5 Nov 2026 | Secret scan | `.gitleaks.toml`: default rules + a rule that fails on Supabase `sb_secret_` keys; only `sb_publishable_` values are allowed (public by design) | CI flagged the publishable key in wrangler.jsonc | .gitleaks.toml |
 | 5 Nov 2026 | Database | Ryan approved `supabase db push` of `20261105000000_init.sql`; Ryan types the DB password himself, never in chat | Policy §7–8 | supabase/ |
 | 5 Nov 2026 | Tests | Database rules tested on PGlite with the real migration files; deny cases for every rule | Never touch real data in CI | supabase/tests/rls.test.ts |

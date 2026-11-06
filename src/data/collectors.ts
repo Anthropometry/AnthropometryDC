@@ -63,25 +63,34 @@ export interface InviteRow {
   uses: number
   expiresAt: string
   revoked: boolean
+  /** True for an active admin-made code whose plain code is kept (Amendment B1). */
+  canShow: boolean
 }
 
+/** Admin only (checked again in the database). */
 export async function listInvites(client: SupabaseClient): Promise<InviteRow[]> {
-  const { data, error } = await client
-    .from('invite_codes')
-    .select('id, label, max_uses, uses, expires_at, revoked')
-    .order('created_at', { ascending: false })
+  const { data, error } = await client.rpc('admin_list_invites')
   if (error) throw error
-  return (data ?? []).map((r) => ({
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
     id: r.id as string,
     label: r.label as string,
     maxUses: r.max_uses as number,
     uses: r.uses as number,
     expiresAt: r.expires_at as string,
     revoked: r.revoked as boolean,
+    canShow: r.can_show === true,
   }))
 }
 
-/** Returns the plain code. It is shown once; only its hash is stored. */
+/** The plain code of an active admin-made code (Amendment B1). Admin only. */
+export async function showInvite(client: SupabaseClient, id: string): Promise<string> {
+  const { data, error } = await client.rpc('admin_show_invite', { p_id: id })
+  if (error) throw error
+  if (typeof data !== 'string') throw new Error('code_not_available')
+  return data
+}
+
+/** Returns the plain code. Admins can show it again while it is active (Amendment B1). */
 export async function createInvite(client: SupabaseClient, label: string, maxUses = 3, days = 10): Promise<string> {
   const { data, error } = await client.rpc('create_invite', { p_label: label, p_max_uses: maxUses, p_days: days })
   if (error) throw error

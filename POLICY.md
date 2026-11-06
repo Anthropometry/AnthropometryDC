@@ -26,7 +26,10 @@ working around it. Anthro Collect is a student research project at Ashesi Univer
 ## Product rules
 
 10. Consent before any measurement or photo. No unblurred face leaves the camera function.
-11. Names only in `consents`. Collectors log in with phone + PIN; never add an email field.
+11. Participant names only in `consents`. The one exception for people who are not participants:
+    a collector's own display name in `collectors` (visible to that collector and admins only,
+    never beside participant data, never exported). Collectors log in with phone + PIN; never add
+    an email field.
     The hidden login id built from the phone (`src/lib/phone.ts`) is never shown or mailed.
 12. Offline first: write locally, sync later, delete locally only after the server confirms.
 13. Free tier only; no new service or library without a `DISCUSSION.md` entry Ryan approved.

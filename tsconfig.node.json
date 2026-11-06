@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["vite.config.ts", "vitest.config.ts", "eslint.config.js", "scripts", "supabase/tests"]
+  "include": ["vite.config.ts", "vitest.config.ts", "pwa.config.ts", "eslint.config.js", "scripts", "supabase/tests"]
 }

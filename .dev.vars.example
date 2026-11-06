@@ -1,3 +1,5 @@
-# Worker vars for `wrangler dev`. Copy to .dev.vars. Public values only; no secret key.
+# Worker vars for `wrangler dev`. Copy to .dev.vars. No Supabase secret key, ever.
 SUPABASE_URL=https://YOUR-PROJECT.supabase.co
 SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxx
+# PIN-lockout guard secret: make one with `node scripts/make-guard-secret.mjs`.
+LOGIN_GUARD_SECRET=

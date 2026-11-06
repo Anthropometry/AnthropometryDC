@@ -17,11 +17,11 @@ Must-pass checks. A box is ticked only after Ryan tests it on a phone.
 - [ ] CI runs on a pull request: typecheck, tests, audit, secret scan, build
 - [ ] Deploy waits for Ryan's approval, then the live URL returns `/api/health` OK
 - [ ] First migration applied with row-level security; deny tests pass in CI
-- [ ] Ryan exists as the admin collector
+- [ ] Ryan exists as the admin collector (joins with a bootstrap invite code, then promoted in the SQL editor by Ryan — see F1)
 
 ## M1 Login (F1)
 
-- [ ] Phone + PIN login works on Android and iPhone; wrong PIN shows a plain message
+- [ ] Join with invite code → pending → approved by Ryan; phone + PIN login works on Android and iPhone; wrong PIN shows a plain message
 - [ ] Installs to the Home Screen; opens offline
 
 ## M2 Home + practice (F2, F3)
@@ -66,7 +66,7 @@ Must-pass checks. A box is ticked only after Ryan tests it on a phone.
 
 | ID | Feature | Done when (acceptance) | Security built in |
 | --- | --- | --- | --- |
-| F1 | Login + install | Phone + 6-digit PIN logs in on Android Chrome and iPhone Safari; Add to Home Screen works; app opens offline after first load | No sign-up from the app; accounts made only by the admin script; rate-limited login; no email field |
+| F1 | Login + install | Join with invite code + phone + PIN; Ryan approves; phone + 6-digit PIN logs in on Android Chrome and iPhone Safari; Add to Home Screen works; app opens offline after first load | Invite code checked by a database hook; pending accounts denied everything until approved; rate-limited login; no email field |
 | F2 | Home + settings + device self-check | Unit (cm/in) and app language set once; sync badge; 10-second camera/sensor/detector check saved with phone model | Collector can change only unit and language (column-level grant) |
 | F3 | Practice mode | Practice participants clearly marked, flagged `is_practice`, excluded from every export | Database refuses real participants until collection opens after IRB approval |
 | F4 | Participant + consent | Adult / under-18 path; consent in EN/FR/TW with English always shown; two required ticks; signature; guardian + child assent; "capture later"; receipt code | Names only in `consents`; collectors can write but never read consents; later screens locked until consent exists |

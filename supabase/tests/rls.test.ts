@@ -1,72 +1,43 @@
 /**
- * Database-rule tests. Every migration in supabase/migrations is applied, in order, to an
- * in-memory PGlite database with small stand-ins for Supabase's auth schema and roles.
- * No real data is touched. Deny cases first: that is where security bugs hide.
+ * Database-rule tests for the core tables. Every migration in supabase/migrations is applied, in
+ * order, to an in-memory PGlite database (see helpers.ts). No real data is touched.
+ * Deny cases first: that is where security bugs hide. F1 onboarding rules: f1.test.ts.
  */
-import { readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { PGlite } from '@electric-sql/pglite'
+import type { PGlite } from '@electric-sql/pglite'
 import { beforeEach, describe, expect, it } from 'vitest'
-
-const MIGRATIONS = join(import.meta.dirname, '..', 'migrations')
+import { createDb, runAs, seed } from './helpers'
 
 const A = '00000000-0000-4000-8000-00000000000a'
 const B = '00000000-0000-4000-8000-00000000000b'
 const ADMIN = '00000000-0000-4000-8000-0000000000ad'
-const PA = '10000000-0000-4000-8000-00000000000a' // A's practice participant
-const PB = '10000000-0000-4000-8000-00000000000b' // B's practice participant
-
-// Minimal Supabase stand-ins: roles, auth.users, auth.uid() from the JWT "sub" claim.
-const SUPABASE_STUB = `
-  create role anon nologin;
-  create role authenticated nologin;
-  create schema auth;
-  create table auth.users (id uuid primary key);
-  create function auth.uid() returns uuid language sql stable as $$
-    select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
-  $$;
-  grant usage on schema auth to anon, authenticated;
-  grant execute on function auth.uid() to anon, authenticated;
-  grant usage on schema public to anon, authenticated;
-`
+const PA = '10000000-0000-4000-8000-00000000000a' // A practice participant
+const PB = '10000000-0000-4000-8000-00000000000b' // B practice participant
 
 let db: PGlite
 
 async function freshDb() {
-  const pg = new PGlite()
-  await pg.exec(SUPABASE_STUB)
-  for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql')).sort()) {
-    await pg.exec(readFileSync(join(MIGRATIONS, file), 'utf8'))
-  }
-  // Seed as the database owner (bypasses RLS), like the admin script would.
-  await pg.exec(`
+  const pg = await createDb()
+  // Seed as the database owner with triggers off, like an admin import. All approved.
+  await seed(pg, `
     insert into auth.users (id) values ('${A}'), ('${B}'), ('${ADMIN}');
-    insert into public.collectors (id, phone, role) values
-      ('${A}', '+233241111111', 'collector'),
-      ('${B}', '+233242222222', 'collector'),
-      ('${ADMIN}', '+233243333333', 'admin');
+    insert into public.collectors (id, phone, role, status) values
+      ('${A}', '+233241111111', 'collector', 'approved'),
+      ('${B}', '+233242222222', 'collector', 'approved'),
+      ('${ADMIN}', '+233243333333', 'admin', 'approved');
     insert into public.participants (id, collector_id, is_practice, age_group) values
       ('${PA}', '${A}', true, 'adult'),
       ('${PB}', '${B}', true, 'child');
     insert into public.consents
       (participant_id, collector_id, participant_name, language, consent_version,
        agreed_data, agreed_photos, signed_at)
-    values ('${PA}', '${A}', 'Test Person', 'en', 'practice', true, true, now());
+    values ('${PA}', '${A}', 'Test Person', 'en', 'practice', true, true, now())
   `)
   return pg
 }
 
 /** Run SQL as a logged-in user (role authenticated, auth.uid() = id), or as anon. */
-async function as<T = Record<string, unknown>>(who: string | 'anon', sql: string, params: unknown[] = []) {
-  await db.exec(who === 'anon' ? `set role anon` : `set role authenticated`)
-  await db.query(`select set_config('request.jwt.claim.sub', $1, false)`, [who === 'anon' ? '' : who])
-  try {
-    return await db.query<T>(sql, params)
-  } finally {
-    await db.exec(`reset role`)
-    await db.query(`select set_config('request.jwt.claim.sub', '', false)`)
-  }
-}
+const as = <T = Record<string, unknown>>(who: string, sql: string, params: unknown[] = []) =>
+  runAs<T>(db, who, sql, params)
 
 const newParticipant = (collector: string, practice: boolean, id = crypto.randomUUID()) =>
   `insert into public.participants (id, collector_id, is_practice, age_group)

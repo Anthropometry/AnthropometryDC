@@ -11,7 +11,8 @@ import { Join } from './Join'
 import { SignIn } from './SignIn'
 import { Invite, type InviteApi } from './Invite'
 import { Home, Inactive, Waiting, Welcome } from './Status'
-import type { MyInviteRow } from '../data/collectors'
+import type { CollectorRow, InviteRow, MyInviteRow } from '../data/collectors'
+import { Admin, codeState, type AdminApi } from './Admin'
 
 afterEach(cleanup)
 
@@ -287,5 +288,122 @@ describe('neutral wording (Amendment A2)', () => {
       </>,
     )
     expect(container.textContent).not.toMatch(/Ryan|Patience/)
+  })
+})
+
+describe('Admin screen (Amendment B)', () => {
+  const future = new Date(Date.now() + 5 * 86400_000).toISOString()
+  const ann: CollectorRow = {
+    id: 'ann', displayName: 'Ann', phone: '+233205552668', status: 'pending', role: 'collector',
+    createdAt: '2026-11-06T12:00:00Z', inviteLabel: 'Ann', invitedBy: 'Patience (admin)',
+  }
+  const code = (id: string, over: Partial<InviteRow> = {}): InviteRow => ({
+    id, label: `Code ${id}`, maxUses: 3, uses: 1, expiresAt: future, revoked: false, canShow: true, ...over,
+  })
+
+  function fakeApi(invites: InviteRow[], collectors: CollectorRow[] = [ann]) {
+    return {
+      listCollectors: vi.fn(async () => collectors),
+      decide: vi.fn(async () => {}),
+      listInvites: vi.fn(async () => invites),
+      createInvite: vi.fn(async () => 'NEWC2345'),
+      showInvite: vi.fn(async () => 'ZJ9RPUUX'),
+      revokeInvite: vi.fn(async () => {}),
+    } satisfies AdminApi
+  }
+
+  it('pending card puts phone, joined, invited by and code on their own lines', async () => {
+    render(<Admin api={fakeApi([])} myId="me" appUrl="x" shareEnv={{}} onBack={vi.fn()} />)
+    const card = await waitFor(() => screen.getByRole('article', { name: 'Waiting: Ann' }))
+    const text = card.textContent ?? ''
+    expect(text).toContain('Phone+233 20 555 2668')
+    expect(text).toContain('Joined6 Nov')
+    expect(text).toContain('Invited byPatience (admin)')
+    expect(text).toContain('CodeAnn')
+  })
+
+  it('ALLOW: Show code reveals the code; Share sends the message with joins left', async () => {
+    const api = fakeApi([code('a')])
+    const share = vi.fn(async () => {})
+    render(<Admin api={api} myId="me" appUrl="https://app.test" shareEnv={{ share }} onBack={vi.fn()} />)
+    fireEvent.click(await waitFor(() => screen.getByRole('button', { name: 'Show code' })))
+    await waitFor(() => screen.getByText('ZJ9R-PUUX'))
+    expect(api.showInvite).toHaveBeenCalledWith('a')
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }))
+    await waitFor(() => expect(share).toHaveBeenCalled())
+    const text = (share.mock.calls[0] as unknown as [{ text: string }])[0].text
+    expect(text).toContain('ZJ9R-PUUX')
+    expect(text).toContain('2 more people')
+  })
+
+  it('Copy copies the message', async () => {
+    const copy = vi.fn(async () => {})
+    render(<Admin api={fakeApi([code('a')])} myId="me" appUrl="x" shareEnv={{ copy }} onBack={vi.fn()} />)
+    fireEvent.click(await waitFor(() => screen.getByRole('button', { name: 'Show code' })))
+    await waitFor(() => screen.getByText('ZJ9R-PUUX'))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
+    await waitFor(() => screen.getByText(/Message copied/))
+    expect(copy).toHaveBeenCalled()
+  })
+
+  it('DENY: a used-up or expired code offers neither Show code nor Revoke; bootstrap has no Show code', async () => {
+    const past = new Date(Date.now() - 86400_000).toISOString()
+    render(
+      <Admin
+        api={fakeApi([code('used', { uses: 3 }), code('old', { expiresAt: past }), code('boot', { canShow: false, uses: 0 })], [])}
+        myId="me"
+        appUrl="x"
+        shareEnv={{}}
+        onBack={vi.fn()}
+      />,
+    )
+    const used = await waitFor(() => screen.getByRole('article', { name: 'Code: Code used' }))
+    expect(used.textContent).toContain('Used up')
+    expect(used.querySelector('button')).toBeNull()
+    const old = screen.getByRole('article', { name: 'Code: Code old' })
+    expect(old.textContent).toContain('Expired')
+    expect(old.querySelector('button')).toBeNull()
+    const boot = screen.getByRole('article', { name: 'Code: Code boot' })
+    expect(boot.textContent).toContain('Revoke')
+    expect(boot.textContent).not.toContain('Show code')
+  })
+
+  it('DENY: a code the database will not show gives a plain message', async () => {
+    const api = fakeApi([code('a')])
+    api.showInvite.mockRejectedValueOnce(new Error('code_not_available'))
+    render(<Admin api={api} myId="me" appUrl="x" shareEnv={{}} onBack={vi.fn()} />)
+    fireEvent.click(await waitFor(() => screen.getByRole('button', { name: 'Show code' })))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('can no longer be shown'))
+  })
+
+  it('new code shows with Share and the joins and days chosen', async () => {
+    const api = fakeApi([])
+    const share = vi.fn(async () => {})
+    render(<Admin api={api} myId="me" appUrl="x" shareEnv={{ share }} onBack={vi.fn()} />)
+    await waitFor(() => screen.getByRole('article', { name: 'Waiting: Ann' }))
+    type('Label (who it is for)', 'Akosua')
+    type('Joins allowed', '5')
+    fireEvent.click(screen.getByRole('button', { name: 'Create invite code' }))
+    await waitFor(() => screen.getByText('NEWC-2345'))
+    expect(api.createInvite).toHaveBeenCalledWith('Akosua', 5, 10)
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }))
+    await waitFor(() => expect(share).toHaveBeenCalled())
+    expect((share.mock.calls[0] as unknown as [{ text: string }])[0].text).toContain('5 more people')
+  })
+
+  it('approve and revoke call the API', async () => {
+    const api = fakeApi([code('a')])
+    render(<Admin api={api} myId="me" appUrl="x" shareEnv={{}} onBack={vi.fn()} />)
+    fireEvent.click(await waitFor(() => screen.getByRole('button', { name: 'Approve' })))
+    await waitFor(() => expect(api.decide).toHaveBeenCalledWith('ann', 'approved'))
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
+    await waitFor(() => expect(api.revokeInvite).toHaveBeenCalledWith('a'))
+  })
+
+  it('codeState', () => {
+    expect(codeState(code('a'))).toBe('active')
+    expect(codeState(code('a', { revoked: true }))).toBe('revoked')
+    expect(codeState(code('a', { uses: 3 }))).toBe('used up')
+    expect(codeState(code('a', { expiresAt: '2000-01-01T00:00:00Z' }))).toBe('expired')
   })
 })

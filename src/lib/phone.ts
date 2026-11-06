@@ -47,3 +47,9 @@ export function loginIdToPhone(loginId: string): string | null {
   const m = loginId.match(/^([1-9]\d{7,14})@(.+)$/)
   return m && m[2] === LOGIN_ID_DOMAIN ? `+${m[1]}` : null
 }
+
+/** For display only: "+233205552668" → "+233 20 555 2668". Other countries are shown as stored. */
+export function formatPhone(e164: string): string {
+  const m = e164.match(/^\+233(\d{2})(\d{3})(\d{4})$/)
+  return m ? `+233 ${m[1]} ${m[2]} ${m[3]}` : e164
+}

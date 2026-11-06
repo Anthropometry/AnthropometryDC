@@ -74,8 +74,11 @@ Invite codes are created by admins, so the very first one is made in the SQL edi
 ## Everyday tasks
 
 - **Approve, reject or disable collectors** and **create or revoke invite codes:** in the app,
-  Home → **Admin**. A new invite code is shown once; write it down and share it in person or by
-  WhatsApp. Defaults: 3 joins, 10 days (you can change them per code).
+  Home → **Admin**. Tap **Share** to send the ready message (app link + code) by WhatsApp or SMS,
+  or **Copy**. Defaults: 3 joins, 10 days (you can change them per code).
+  **Someone lost their code?** Tap **Show code** on that code (only while it is still active) and
+  share it again. Codes made in the SQL editor (bootstrap) and collectors' referral codes can't be
+  shown again: make a new one instead.
 
 - **Collectors invite collectors:** every approved collector has **Invite a collector** on Home.
   Their codes always allow 3 joins and last 10 days; each collector can have at most 2 active codes.

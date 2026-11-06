@@ -356,6 +356,58 @@ disagree, the amendment wins.
 | Invite screen: Share uses the share sheet, falls back to Copy; message has no PIN or phone | React Testing Library | both |
 | No screen text contains "Ryan" | React Testing Library | deny |
 
+## Amendment B (6 Nov 2026): approved by Ryan, 6 Nov 2026
+
+Asked for after the first real admin session. Where this amendment and the text above disagree, the
+amendment wins. Applied migrations are never edited; a **new** migration adds what is below.
+
+### B1. Admins can show an admin code again
+
+- **Why:** a collector who loses the code should not force the admin to revoke and re-create it.
+- Each **active** code the admin created in the app has a **Show code** button. It shows the code
+  (`ABCD-2345`) with **Share** and **Copy**.
+- **What is kept:** the plain code of an *admin-made* code is kept in a table in the `private`
+  schema (not reachable through the Supabase API), next to the hash that sign-up still uses. It is
+  read only through `admin_show_invite`, which checks `is_admin()` (an approved admin).
+- **Erased when no longer usable:** revoked, used up, expired, or its creator no longer approved.
+  Revoke and the last join erase it at once; expired ones are erased the next time an admin lists,
+  creates or shows codes. "Show code" is refused for any code that is not active.
+- **Not changed:** collector referral codes stay **shown once** (the collector shares them straight
+  away and can revoke and make another). Codes made in the SQL editor (bootstrap) have no stored
+  plain code, so Show code is not offered for them.
+- **Risk accepted by Ryan:** someone with full database access (the Supabase dashboard) could read
+  the active admin codes. They are short-lived (default 10 days), few-use (default 3), and every
+  person who joins still needs approval.
+
+### B2. Share and Copy for admin codes
+
+- The new-code box and every shown code have **Share** (phone share sheet) and **Copy**, with the
+  same ready message as collector referrals: the app link, the code, how many joins are left and the
+  last day it works. No PIN, phone number or name in the message.
+
+### B3. Admin screen layout
+
+- **Pending card:** name in large text; then **Phone** (`+233 20 555 2668`, spaced), **Joined**
+  (`6 Nov`), **Invited by**, **Code** (its label), each on its own line; Approve / Reject underneath.
+- **All collectors:** name on the first line; status (and Admin) and "Invited by" on the next;
+  Disable / Approve again as a separate button.
+- **Invite codes:** a "Make a new code" form, then a list of cards: label; "1 of 3 joined · works
+  until 16 Nov" (or Used up / Expired / Revoked); buttons **Show code** and **Revoke** only while
+  the code is active. A used-up code no longer offers Revoke.
+- Dates read day-month (`6 Nov`).
+
+### Tests to add for Amendment B
+
+| Test | Tool | Allow or deny |
+| --- | --- | --- |
+| Admin creates a code and shows it again; plain code equals the one returned at creation | PGlite | allow |
+| Collector, pending admin, anon cannot show a code; collector codes and bootstrap codes have nothing to show | PGlite | deny |
+| Revoked, used-up, expired code: show refused and plain code erased | PGlite | deny |
+| `authenticated` and `anon` cannot read `private.invite_code_plain` directly | PGlite | deny |
+| Message for an admin code holds link, code, joins left and date; no phone or PIN | Vitest | both |
+| Phone shown spaced for Ghana numbers, unchanged otherwise | Vitest | both |
+| Admin screen: pending card lines; Show code reveals the code and Share/Copy work; used-up code has no Revoke or Show code | React Testing Library | both |
+
 ## Open questions
 
 None.

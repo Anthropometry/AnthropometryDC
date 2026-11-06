@@ -3,13 +3,25 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import { loadCachedProfile, saveCachedProfile, screenFor, type Profile } from './lib/profile'
 import type { AuthClient } from './lib/auth'
-import { createMyInvite, fetchOwnProfile, listMyInvites, revokeMyInvite } from './data/collectors'
+import {
+  createInvite,
+  createMyInvite,
+  decideCollector,
+  fetchOwnProfile,
+  listCollectors,
+  listInvites,
+  listMyInvites,
+  revokeInvite,
+  revokeMyInvite,
+  showInvite,
+} from './data/collectors'
 import { Invite, type InviteApi } from './screens/Invite'
 import { InstallArea } from './components/InstallArea'
 import { Page, Title } from './components/ui'
 import { Join } from './screens/Join'
 import { SignIn } from './screens/SignIn'
-import { Admin } from './screens/Admin'
+import { Admin, type AdminApi } from './screens/Admin'
+import type { ShareEnv } from './lib/invite'
 import { Home, Inactive, Waiting, Welcome } from './screens/Status'
 
 export type View = 'main' | 'join' | 'signin' | 'admin' | 'invite'
@@ -61,6 +73,22 @@ const inviteApi: InviteApi | null = supabase
       revoke: (id) => revokeMyInvite(supabase as SupabaseClient, id),
     }
   : null
+
+const adminApi: AdminApi | null = supabase
+  ? {
+      listCollectors: () => listCollectors(supabase as SupabaseClient),
+      decide: (id, d) => decideCollector(supabase as SupabaseClient, id, d),
+      listInvites: () => listInvites(supabase as SupabaseClient),
+      createInvite: (label, uses, days) => createInvite(supabase as SupabaseClient, label, uses, days),
+      showInvite: (id) => showInvite(supabase as SupabaseClient, id),
+      revokeInvite: (id) => revokeInvite(supabase as SupabaseClient, id),
+    }
+  : null
+
+const shareEnv: ShareEnv = {
+  share: typeof navigator !== 'undefined' && typeof navigator.share === 'function' ? (d) => navigator.share(d) : undefined,
+  copy: typeof navigator !== 'undefined' && navigator.clipboard ? (t) => navigator.clipboard.writeText(t) : undefined,
+}
 
 const storage = (() => {
   try {
@@ -154,15 +182,16 @@ export default function App() {
       onSignOut={() => void signOut()}
       join={<Join client={authClient} onJoined={afterAuth} onBack={() => setView('main')} />}
       signIn={<SignIn client={authClient} onSignedIn={afterAuth} onBack={() => setView('main')} />}
-      admin={profile ? <Admin client={client} myId={profile.id} onBack={() => setView('main')} /> : null}
+      admin={
+        profile ? (
+          <Admin api={adminApi!} myId={profile.id} appUrl={window.location.origin} shareEnv={shareEnv} onBack={() => setView('main')} />
+        ) : null
+      }
       invite={
         <Invite
           api={inviteApi!}
           appUrl={window.location.origin}
-          shareEnv={{
-            share: typeof navigator.share === 'function' ? (d) => navigator.share(d) : undefined,
-            copy: navigator.clipboard ? (t) => navigator.clipboard.writeText(t) : undefined,
-          }}
+          shareEnv={shareEnv}
           online={online}
           onBack={() => setView('main')}
         />

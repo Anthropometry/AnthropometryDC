@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LOGIN_ID_DOMAIN, isValidPin, loginIdToPhone, normalisePhone, phoneToLoginId } from './phone'
+import { LOGIN_ID_DOMAIN, formatPhone, isValidPin, loginIdToPhone, normalisePhone, phoneToLoginId } from './phone'
 
 describe('normalisePhone: any country (Amendment A1)', () => {
   it.each([
@@ -87,4 +87,14 @@ describe('loginIdToPhone', () => {
 describe('isValidPin', () => {
   it('accepts six digits', () => expect(isValidPin('012345')).toBe(true))
   it.each(['12345', '1234567', '12a456', '', ' 12345'])('rejects %s', (pin) => expect(isValidPin(pin)).toBe(false))
+})
+
+describe('formatPhone (Amendment B3, display only)', () => {
+  it('spaces Ghana numbers', () => {
+    expect(formatPhone('+233205552668')).toBe('+233 20 555 2668')
+  })
+  it('leaves other countries and odd values as stored', () => {
+    expect(formatPhone('+2348031234567')).toBe('+2348031234567')
+    expect(formatPhone('+23320555266')).toBe('+23320555266')
+  })
 })

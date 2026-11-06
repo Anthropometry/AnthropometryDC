@@ -287,6 +287,75 @@ Run on an Android low-cost phone, an Android mid-range phone and an iPhone.
 - **Before User Created hook** is offered on the free plan (Authentication → Auth Hooks, marked
   Beta). The spec uses it; the trigger stays as a backup in case the Beta hook changes or is switched off.
 
-## Open questions for Ryan
+## Amendment A (6 Nov 2026): DRAFT, waiting for approval
 
-None. Ready for approval.
+Built into this same pull request before F1 is merged. Where this amendment and the text above
+disagree, the amendment wins.
+
+### A1. Phone numbers from any country
+
+- Collectors may have a phone number from **any country**. They type it **with its country code**
+  (`+234 803 123 4567`). A number that starts with `0` and has 10 digits is still read as Ghana
+  (`024 123 4567` → `+233241234567`), so Ghanaian collectors type nothing new.
+- Accepted format: international E.164, `+` then 8 to 15 digits, first digit not 0. Spaces,
+  dashes and brackets are ignored. A wrong-looking number is refused with "Enter your number with
+  its country code, for example +233 24 123 4567".
+- Hidden login id: the digits without `+`, as before: `<digits>@phone.anthro-collect.invalid`.
+  Ghana ids are unchanged, so nothing already stored needs converting.
+- Updated in the app, the Worker, the Join/Sign in labels and hints, the database (collector phone
+  check, sign-up hook, trigger, `admin_reset_pin`) through a **new** migration; applied migrations
+  are never edited.
+- Why it is safe: an invite code, a Turnstile check and admin approval still stand between any
+  number and the data.
+
+### A2. Neutral wording
+
+- No screen names a person. "Ryan will approve you soon" → "The project lead will approve you
+  soon"; "Contact Ryan" → "Contact the project lead"; "Ask Ryan for a new code" → "Ask the person
+  who invited you, or the project lead, for a new code".
+
+### A3. Collectors invite collectors (referral codes)
+
+- **Who:** every **approved** collector has an **Invite a collector** button on Home. Admins keep
+  their invite-code screen.
+- **The code:** random, 8 characters from the same easy-to-read alphabet, shown once.
+  It does **not** contain the collector's name: a name inside a code makes codes easier to guess
+  and puts the name in every message it is forwarded in. Instead the database records **who
+  created each code**, so the admin sees who referred whom.
+- **Sharing:** a **Share** button opens the phone's share sheet (WhatsApp, SMS app, etc.) with a
+  ready message: "Join the Anthro Collect student research project at Ashesi University: open
+  <app link>, tap Join with invite code and enter ABCD-2345." No SMS is sent by the app (free).
+  If sharing isn't available, a **Copy** button copies the same message.
+- **Limits** (collector codes): **3 joins**, valid **10 days**, fixed. A collector can have at most
+  **2 active codes** at a time, so a lost phone or a leaked code can only let a few people *apply*.
+  Collectors see their own codes (uses left, expiry) and can **revoke** them; they never see who
+  joined.
+- **Admin codes:** default also **3 joins / 10 days** (was 10 / 14), still changeable per code
+  (1–500 joins, 1–90 days).
+- **Admin view:** each pending collector shows **name, phone, the code's label, and "Invited by
+  <collector name>"** (or "Invited by admin"). The approved-collectors list keeps "Invited by".
+- **Rules in the database:**
+  - only approved collectors and admins can create codes;
+  - a collector's code always gets 3 joins and 10 days, whatever the app sends;
+  - the 2-active-codes limit is enforced by the database;
+  - collectors read only their own codes, never others' or their hashes;
+  - a disabled or rejected collector's codes stop working at once.
+- Joining with any code still makes the new collector **pending** until an admin approves.
+
+### Tests to add for Amendment A
+
+| Test | Tool | Allow or deny |
+| --- | --- | --- |
+| Phone: Ghana local, `+233`, Nigeria, UK, US formats accepted; too short/long, no country code, letters refused; login id round-trip | Vitest (`src/lib`) | both |
+| Worker `/api/login` accepts an international number, refuses a malformed one without calling Supabase | Vitest (Worker) | both |
+| Hook and trigger accept an international hidden id; collector phone stored as `+<digits>` | PGlite | allow |
+| Approved collector creates a code (3 joins / 10 days even if asked for more); 3rd active code refused; pending/rejected/disabled collector refused; anon refused | PGlite | both |
+| Collector sees only own codes; cannot read hashes of others; can revoke own, not others' | PGlite | both |
+| Code of a disabled collector stops working | PGlite | deny |
+| Admin sees "Invited by" for every collector | PGlite | allow |
+| Invite screen: Share uses the share sheet, falls back to Copy; message has no PIN or phone | React Testing Library | both |
+| No screen text contains "Ryan" | React Testing Library | deny |
+
+## Open questions
+
+None. Amendment A needs approval before it is built.

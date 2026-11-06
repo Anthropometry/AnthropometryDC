@@ -142,7 +142,7 @@ export async function signInWithPhonePin(
 export function failureMessage(reason: AuthFailure, retryAfter?: number): string {
   switch (reason) {
     case 'invalid_phone':
-      return 'Enter a Ghana mobile number, for example 024 123 4567.'
+      return 'Enter your number with its country code, for example +233 24 123 4567. Ghana numbers can also start with 0.'
     case 'invalid_pin':
       return 'The PIN must be exactly 6 digits.'
     case 'weak_pin':
@@ -152,7 +152,7 @@ export function failureMessage(reason: AuthFailure, retryAfter?: number): string
     case 'invalid_name':
       return 'Enter your name (2 to 60 letters).'
     case 'invalid_invite':
-      return 'This invite code is not right, has expired or has been used up. Ask Ryan for a new one.'
+      return 'This invite code is not right, has expired or has been used up. Ask the person who invited you, or the project lead, for a new code.'
     case 'already_joined':
       return 'This phone number has already joined. Use Sign in instead.'
     case 'wrong_credentials':

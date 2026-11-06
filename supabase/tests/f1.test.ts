@@ -113,7 +113,7 @@ describe('Before User Created hook', () => {
     },
   )
 
-  it.each(['someone@gmail.com', '233141234567@phone.anthro-collect.invalid', '233241234567@phone.anthro-collect.invalid.evil.com'])(
+  it.each(['someone@gmail.com', '0241234567@phone.anthro-collect.invalid', '1234567@phone.anthro-collect.invalid', '233241234567@phone.anthro-collect.invalid.evil.com'])(
     'DENY: email that is not a hidden login id (%s)',
     async (email) => {
       const code = await createInvite()

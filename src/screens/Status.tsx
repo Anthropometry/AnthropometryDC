@@ -36,7 +36,7 @@ export function Waiting({
       <OfflineBanner online={online} />
       <Title>Waiting for approval</Title>
       <p>
-        Hello {profile.displayName}. Ryan will approve you soon. You can close the app; you stay signed in.
+        Hello {profile.displayName}. The project lead will approve you soon. You can close the app; you stay signed in.
       </p>
       <Button onClick={onCheck} disabled={!online}>
         Check again
@@ -52,7 +52,7 @@ export function Inactive({ onSignOut }: { onSignOut: () => void }) {
   return (
     <Page>
       <Title>Account not active</Title>
-      <p>Your account is not active. Contact Ryan.</p>
+      <p>Your account is not active. Contact the project lead.</p>
       <Button variant="secondary" onClick={onSignOut}>
         Sign out
       </Button>
@@ -64,12 +64,14 @@ export function Home({
   profile,
   online,
   onAdmin,
+  onInvite,
   onSignOut,
   install,
 }: {
   profile: Profile
   online: boolean
   onAdmin: () => void
+  onInvite: () => void
   onSignOut: () => void
   install?: ReactNode
 }) {
@@ -80,6 +82,9 @@ export function Home({
       <p className="text-slate-600">
         You are signed in. Practice participants, consent, measurements and photos come in the next updates.
       </p>
+      <Button variant="secondary" onClick={onInvite} disabled={!online}>
+        Invite a collector
+      </Button>
       {profile.role === 'admin' && (
         <Button onClick={onAdmin} disabled={!online}>
           Admin: collectors and invite codes

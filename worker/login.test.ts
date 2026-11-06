@@ -127,6 +127,19 @@ describe('POST /api/login: deny', () => {
     expect(supabaseCalls()).toBe(before)
   })
 
+  it('an international number signs in with its own hidden id', async () => {
+    tokenResponse = (body) =>
+      body.email === '2348031234567@phone.anthro-collect.invalid'
+        ? Response.json({ access_token: 'acc', refresh_token: 'ref' })
+        : Response.json({ error_code: 'invalid_credentials' }, { status: 400 })
+    expect((await attempt(RIGHT_PIN, '+234 803 123 4567')).status).toBe(200)
+  })
+
+  it('DENY: a number without country code never reaches Supabase', async () => {
+    expect((await attempt(RIGHT_PIN, '803 123 4567')).status).toBe(400)
+    expect(calls).toHaveLength(0)
+  })
+
   it('a lock on one account does not affect another', async () => {
     for (let i = 0; i < 5; i++) await attempt('000001')
     expect((await attempt('000001', '0551234567')).status).toBe(401)

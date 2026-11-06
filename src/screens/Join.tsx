@@ -56,7 +56,7 @@ export function Join({ client, onJoined, onBack, Captcha = Turnstile }: JoinProp
       <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <Field
           label="Invite code"
-          hint="8 letters and numbers from Ryan"
+          hint="8 letters and numbers from the person who invited you"
           value={inviteCode}
           onChange={(e) => setInviteCode(e.target.value)}
           autoCapitalize="characters"
@@ -65,7 +65,7 @@ export function Join({ client, onJoined, onBack, Captcha = Turnstile }: JoinProp
         />
         <Field
           label="Your name (collector)"
-          hint="Your own name, so Ryan knows who joined"
+          hint="Your own name, so the project lead knows who joined"
           value={name}
           onChange={(e) => setName(e.target.value)}
           autoComplete="name"
@@ -73,7 +73,7 @@ export function Join({ client, onJoined, onBack, Captcha = Turnstile }: JoinProp
         />
         <Field
           label="Phone number"
-          hint="Ghana mobile, for example 024 123 4567"
+          hint="With country code, for example +233 24 123 4567 or +234 803 123 4567. Ghana numbers can start with 0."
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           inputMode="tel"

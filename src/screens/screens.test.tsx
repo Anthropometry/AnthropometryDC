@@ -9,6 +9,9 @@ import { InstallHelp } from '../components/InstallArea'
 import { AppView, type AppViewProps } from '../App'
 import { Join } from './Join'
 import { SignIn } from './SignIn'
+import { Invite, type InviteApi } from './Invite'
+import { Home, Inactive, Waiting, Welcome } from './Status'
+import type { MyInviteRow } from '../data/collectors'
 
 afterEach(cleanup)
 
@@ -152,6 +155,7 @@ describe('routing by status', () => {
     join: <p>JOIN SCREEN</p>,
     signIn: <p>SIGN IN SCREEN</p>,
     admin: <p>ADMIN SCREEN</p>,
+    invite: <p>INVITE SCREEN</p>,
     install: null,
   })
   const P: Profile = { id: 'u', displayName: 'Ama', status: 'approved', role: 'collector' }
@@ -179,7 +183,7 @@ describe('routing by status', () => {
 
   it.each(['rejected', 'disabled'] as const)('%s → not active', (status) => {
     render(<AppView {...base({ ...P, status })} />)
-    screen.getByText('Your account is not active. Contact Ryan.')
+    screen.getByText('Your account is not active. Contact the project lead.')
   })
 
   it('DENY: a collector never reaches the admin screen; an admin does', () => {
@@ -193,5 +197,95 @@ describe('routing by status', () => {
   it('DENY: pending admin is still only waiting', () => {
     render(<AppView {...base({ ...P, role: 'admin', status: 'pending' }, 'admin')} />)
     expect(screen.queryByText('ADMIN SCREEN')).toBeNull()
+  })
+})
+
+describe('Invite a collector (Amendment A3)', () => {
+  const future = new Date(Date.now() + 5 * 86400_000).toISOString()
+  const row = (id: string, uses = 0): MyInviteRow => ({ id, label: 'Referral from Kofi', maxUses: 3, uses, expiresAt: future, revoked: false })
+
+  function fakeApi(rows: MyInviteRow[], create: () => Promise<string> = async () => 'ABCD2345') {
+    return {
+      list: vi.fn(async () => rows),
+      create: vi.fn(create),
+      revoke: vi.fn(async () => {}),
+    } satisfies InviteApi
+  }
+
+  it('ALLOW: makes a code, shows it once with a dash, and shares the ready message', async () => {
+    const api = fakeApi([])
+    const share = vi.fn(async () => {})
+    render(<Invite api={api} appUrl="https://app.test" shareEnv={{ share }} online onBack={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Make an invite code' }))
+    await waitFor(() => screen.getByText('ABCD-2345'))
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }))
+    await waitFor(() => expect(share).toHaveBeenCalled())
+    const text = (share.mock.calls[0] as unknown as [{ text: string }])[0].text
+    expect(text).toContain('https://app.test')
+    expect(text).toContain('ABCD-2345')
+  })
+
+  it('falls back to Copy when there is no share sheet', async () => {
+    const copy = vi.fn(async () => {})
+    render(<Invite api={fakeApi([])} appUrl="https://app.test" shareEnv={{ copy }} online onBack={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Make an invite code' }))
+    await waitFor(() => screen.getByText('ABCD-2345'))
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }))
+    await waitFor(() => screen.getByText(/Message copied/))
+    expect(copy).toHaveBeenCalled()
+  })
+
+  it('DENY: with 2 active codes the button is off; a used-up code does not count', async () => {
+    const { unmount } = render(
+      <Invite api={fakeApi([row('a'), row('b')])} appUrl="x" shareEnv={{}} online onBack={vi.fn()} />,
+    )
+    await waitFor(() => screen.getByText(/the most allowed/))
+    expect((screen.getByRole('button', { name: 'Make an invite code' }) as HTMLButtonElement).disabled).toBe(true)
+    unmount()
+    render(<Invite api={fakeApi([row('a'), row('b', 3)])} appUrl="x" shareEnv={{}} online onBack={vi.fn()} />)
+    await waitFor(() => screen.getByText('3/3 joined'))
+    expect((screen.getByRole('button', { name: 'Make an invite code' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('DENY: the database refusing a 3rd code shows a plain message', async () => {
+    const api = fakeApi([], async () => Promise.reject(new Error('too_many_active_codes')))
+    render(<Invite api={api} appUrl="x" shareEnv={{}} online onBack={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Make an invite code' }))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('already have 2 active codes'))
+  })
+
+  it('revoke calls the API for that code', async () => {
+    const api = fakeApi([row('a')])
+    render(<Invite api={api} appUrl="x" shareEnv={{}} online onBack={vi.fn()} />)
+    await waitFor(() => screen.getByRole('button', { name: 'Revoke' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
+    await waitFor(() => expect(api.revoke).toHaveBeenCalledWith('a'))
+  })
+
+  it('approved collectors reach the Invite screen from Home', () => {
+    const setView = vi.fn()
+    const P: Profile = { id: 'u', displayName: 'Ama', status: 'approved', role: 'collector' }
+    render(<Home profile={P} online onAdmin={vi.fn()} onInvite={() => setView('invite')} onSignOut={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Invite a collector' }))
+    expect(setView).toHaveBeenCalledWith('invite')
+  })
+})
+
+describe('neutral wording (Amendment A2)', () => {
+  it('DENY: no screen names a person', () => {
+    const { client } = fakeClient()
+    const P: Profile = { id: 'u', displayName: 'Ama', status: 'pending', role: 'collector' }
+    const { container } = render(
+      <>
+        <Welcome onSignIn={vi.fn()} onJoin={vi.fn()} />
+        <Join client={client} onJoined={vi.fn()} onBack={vi.fn()} Captcha={SilentCaptcha} />
+        <SignIn client={client} onSignedIn={vi.fn()} onBack={vi.fn()} Captcha={SilentCaptcha} />
+        <Waiting profile={P} online onCheck={vi.fn()} onSignOut={vi.fn()} />
+        <Inactive onSignOut={vi.fn()} />
+        <Home profile={{ ...P, status: 'approved' }} online onAdmin={vi.fn()} onInvite={vi.fn()} onSignOut={vi.fn()} />
+        <Invite api={{ list: async () => [], create: async () => '', revoke: async () => {} }} appUrl="x" shareEnv={{}} online onBack={vi.fn()} />
+      </>,
+    )
+    expect(container.textContent).not.toMatch(/Ryan|Patience/)
   })
 })

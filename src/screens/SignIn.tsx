@@ -62,7 +62,7 @@ export function SignIn({ client, onSignedIn, onBack, fetchFn = (i, o) => fetch(i
         <Button type="submit" disabled={!ready || busy}>
           {busy ? 'Signing in…' : 'Sign in'}
         </Button>
-        <p className="text-center text-slate-600">Forgot PIN? Contact Ryan.</p>
+        <p className="text-center text-slate-600">Forgot PIN? Contact the project lead.</p>
         <Button variant="secondary" onClick={onBack}>
           Back
         </Button>

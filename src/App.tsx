@@ -3,7 +3,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import { loadCachedProfile, saveCachedProfile, screenFor, type Profile } from './lib/profile'
 import type { AuthClient } from './lib/auth'
-import { fetchOwnProfile } from './data/collectors'
+import { createMyInvite, fetchOwnProfile, listMyInvites, revokeMyInvite } from './data/collectors'
+import { Invite, type InviteApi } from './screens/Invite'
 import { InstallArea } from './components/InstallArea'
 import { Page, Title } from './components/ui'
 import { Join } from './screens/Join'
@@ -11,7 +12,7 @@ import { SignIn } from './screens/SignIn'
 import { Admin } from './screens/Admin'
 import { Home, Inactive, Waiting, Welcome } from './screens/Status'
 
-export type View = 'main' | 'join' | 'signin' | 'admin'
+export type View = 'main' | 'join' | 'signin' | 'admin' | 'invite'
 
 export interface AppViewProps {
   profile: Profile | null
@@ -23,6 +24,7 @@ export interface AppViewProps {
   join: ReactNode
   signIn: ReactNode
   admin: ReactNode
+  invite: ReactNode
   install: ReactNode
 }
 
@@ -38,16 +40,27 @@ export function AppView(p: AppViewProps) {
     return <Waiting profile={p.profile!} online={p.online} onCheck={p.onAuthChanged} onSignOut={p.onSignOut} />
   if (screen === 'inactive') return <Inactive onSignOut={p.onSignOut} />
   if (p.view === 'admin' && p.profile!.role === 'admin') return <>{p.admin}</>
+  if (p.view === 'invite') return <>{p.invite}</>
   return (
     <Home
       profile={p.profile!}
       online={p.online}
       onAdmin={() => p.setView('admin')}
+      onInvite={() => p.setView('invite')}
       onSignOut={p.onSignOut}
       install={p.install}
     />
   )
 }
+
+// Created once: the Supabase client never changes, so the Invite screen loads its list once.
+const inviteApi: InviteApi | null = supabase
+  ? {
+      list: () => listMyInvites(supabase as SupabaseClient),
+      create: () => createMyInvite(supabase as SupabaseClient),
+      revoke: (id) => revokeMyInvite(supabase as SupabaseClient, id),
+    }
+  : null
 
 const storage = (() => {
   try {
@@ -142,6 +155,18 @@ export default function App() {
       join={<Join client={authClient} onJoined={afterAuth} onBack={() => setView('main')} />}
       signIn={<SignIn client={authClient} onSignedIn={afterAuth} onBack={() => setView('main')} />}
       admin={profile ? <Admin client={client} myId={profile.id} onBack={() => setView('main')} /> : null}
+      invite={
+        <Invite
+          api={inviteApi!}
+          appUrl={window.location.origin}
+          shareEnv={{
+            share: typeof navigator.share === 'function' ? (d) => navigator.share(d) : undefined,
+            copy: navigator.clipboard ? (t) => navigator.clipboard.writeText(t) : undefined,
+          }}
+          online={online}
+          onBack={() => setView('main')}
+        />
+      }
       install={<InstallArea />}
     />
   )

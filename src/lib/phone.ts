@@ -1,18 +1,25 @@
 /**
- * Normalise a Ghana phone number to E.164 (+233XXXXXXXXX).
- * Accepts "024 123 4567", "0241234567", "233241234567", "+233 24 123 4567".
- * Returns null when the input is not a valid Ghana mobile number.
+ * Collector phone numbers, from any country (F1 Amendment A1).
+ *
+ * Accepted (spaces, dashes, dots and brackets ignored):
+ *   - international: "+234 803 123 4567", "00234 803 123 4567"  → +2348031234567
+ *   - Ghana local:   "024 123 4567", "0241234567"               → +233241234567
+ *   - Ghana without +: "233 24 123 4567"                        → +233241234567
+ * Result is E.164: "+" then 8–15 digits, first digit not 0. Ghana numbers must also be mobile
+ * numbers (2 or 5 after the country code), which catches the most common typos.
  */
-export function normaliseGhanaPhone(input: string): string | null {
-  const digits = input.replace(/[\s\-().]/g, '')
-  let national: string
-  if (/^\+233\d{9}$/.test(digits)) national = digits.slice(4)
-  else if (/^233\d{9}$/.test(digits)) national = digits.slice(3)
-  else if (/^0\d{9}$/.test(digits)) national = digits.slice(1)
+export function normalisePhone(input: string): string | null {
+  const s = input.replace(/[\s\-().]/g, '')
+  let digits: string
+  if (/^0[25]\d{8}$/.test(s)) digits = `233${s.slice(1)}`
+  else if (/^\+\d+$/.test(s)) digits = s.slice(1)
+  else if (/^00\d+$/.test(s)) digits = s.slice(2)
+  else if (/^233\d{9}$/.test(s)) digits = s
   else return null
-  // Mobile numbers start with 2 or 5 after the leading 0.
-  if (!/^[25]\d{8}$/.test(national)) return null
-  return `+233${national}`
+
+  if (!/^[1-9]\d{7,14}$/.test(digits)) return null
+  if (digits.startsWith('233') && !/^233[25]\d{8}$/.test(digits)) return null
+  return `+${digits}`
 }
 
 /** A PIN is exactly six digits. */
@@ -31,12 +38,12 @@ export const LOGIN_ID_DOMAIN = 'phone.anthro-collect.invalid'
  * "024 123 4567" → "233241234567@phone.anthro-collect.invalid". Null if the phone is invalid.
  */
 export function phoneToLoginId(input: string): string | null {
-  const e164 = normaliseGhanaPhone(input)
+  const e164 = normalisePhone(input)
   return e164 ? `${e164.slice(1)}@${LOGIN_ID_DOMAIN}` : null
 }
 
-/** Reverse of phoneToLoginId, for the admin script and display of the collector's own phone. */
+/** Reverse of phoneToLoginId. */
 export function loginIdToPhone(loginId: string): string | null {
-  const m = loginId.match(/^(233[25]\d{8})@(.+)$/)
+  const m = loginId.match(/^([1-9]\d{7,14})@(.+)$/)
   return m && m[2] === LOGIN_ID_DOMAIN ? `+${m[1]}` : null
 }

@@ -287,7 +287,7 @@ Run on an Android low-cost phone, an Android mid-range phone and an iPhone.
 - **Before User Created hook** is offered on the free plan (Authentication → Auth Hooks, marked
   Beta). The spec uses it; the trigger stays as a backup in case the Beta hook changes or is switched off.
 
-## Amendment A (6 Nov 2026): DRAFT, waiting for approval
+## Amendment A (6 Nov 2026): approved by Ryan, 6 Nov 2026
 
 Built into this same pull request before F1 is merged. Where this amendment and the text above
 disagree, the amendment wins.
@@ -358,4 +358,4 @@ disagree, the amendment wins.
 
 ## Open questions
 
-None. Amendment A needs approval before it is built.
+None.

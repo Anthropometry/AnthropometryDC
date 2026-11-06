@@ -20,8 +20,8 @@ export function Admin({ client, myId, onBack }: { client: SupabaseClient; myId: 
   const [error, setError] = useState('')
   const [newCode, setNewCode] = useState('')
   const [label, setLabel] = useState('')
-  const [maxUses, setMaxUses] = useState('10')
-  const [days, setDays] = useState('14')
+  const [maxUses, setMaxUses] = useState('3')
+  const [days, setDays] = useState('10')
 
   const [version, setVersion] = useState(0)
   const load = useCallback(() => setVersion((v) => v + 1), [])
@@ -88,7 +88,11 @@ export function Admin({ client, myId, onBack }: { client: SupabaseClient; myId: 
           <div key={c.id} className="rounded-xl border border-slate-200 p-3">
             <p className="font-semibold">{c.displayName}</p>
             <p className="text-sm text-slate-600">
-              {c.phone} · code “{c.inviteLabel ?? '—'}” · joined {when(c.createdAt)}
+              {c.phone} · joined {when(c.createdAt)}
+            </p>
+            <p className="text-sm font-medium text-slate-700">
+              Invited by {c.invitedBy ?? '—'}
+              {c.inviteLabel ? <span className="font-normal text-slate-500"> · code “{c.inviteLabel}”</span> : null}
             </p>
             <div className="mt-2 grid grid-cols-2 gap-2">
               <Button onClick={() => void decide(c.id, 'approved')}>Approve</Button>
@@ -105,7 +109,7 @@ export function Admin({ client, myId, onBack }: { client: SupabaseClient; myId: 
         {others.map((c) => (
           <div key={c.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 p-2">
             <span>
-              {c.displayName} <span className="text-sm text-slate-500">· {c.status}{c.role === 'admin' ? ' · admin' : ''}</span>
+              {c.displayName} <span className="text-sm text-slate-500">· {c.status}{c.role === 'admin' ? ' · admin' : ''}{c.invitedBy ? ` · invited by ${c.invitedBy}` : ''}</span>
             </span>
             {c.id !== myId && c.status === 'approved' && (
               <button type="button" className="text-red-700 underline" onClick={() => void decide(c.id, 'disabled')}>

@@ -11,18 +11,18 @@ M0 Setup + CI → M1 Login (F1) → M2 Home + practice (F2, F3) → M3 Consent (
 
 Must-pass checks. A box is ticked only after Ryan tests it on a phone.
 
-## M0 Setup + CI
+## M0 Setup + CI: done, 6 Nov 2026
 
-- [ ] Spec files from the North Anchor merged
-- [ ] CI runs on a pull request: typecheck, tests, audit, secret scan, build
-- [ ] Deploy waits for Ryan's approval, then the live URL returns `/api/health` OK
-- [ ] First migration applied with row-level security; deny tests pass in CI
-- [ ] Ryan exists as the admin collector (joins with a bootstrap invite code, then promoted in the SQL editor by Ryan — see F1)
+- [x] Spec files from the North Anchor merged
+- [x] CI runs on a pull request: typecheck, tests, audit, secret scan, build
+- [x] Deploy waits for Ryan's approval, then the live URL returns `/api/health` OK
+- [x] First migration applied with row-level security; deny tests pass in CI
+- [x] Ryan exists as the admin collector (joins with a bootstrap invite code, then promoted in the SQL editor by Ryan — see F1)
 
-## M1 Login (F1)
+## M1 Login (F1): done, tested by Ryan on Android and iPhone, 6 Nov 2026
 
-- [ ] Join with invite code → pending → approved by Ryan; phone + PIN login works on Android and iPhone; wrong PIN shows a plain message
-- [ ] Installs to the Home Screen; opens offline
+- [x] Join with invite code → pending → approved by Ryan; phone + PIN login works on Android and iPhone; wrong PIN shows a plain message
+- [x] Installs to the Home Screen; opens offline
 
 ## M2 Home + practice (F2, F3)
 

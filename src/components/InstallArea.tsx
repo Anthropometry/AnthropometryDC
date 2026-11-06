@@ -66,19 +66,20 @@ export function InstallHelp({ mode, onInstall }: { mode: InstallMode; onInstall:
       {mode === 'ios-safari' && (
         <ol className="list-decimal space-y-2 pl-5">
           <li>
-            Tap the <b>Share</b> button <span aria-hidden="true">(square with an arrow ⬆)</span> at the bottom of Safari.
+            Tap <b>Share</b> <span aria-hidden="true">(square with an arrow ⬆)</span> at the bottom of Safari. Newer
+            iPhones: tap <b>•••</b> (bottom right) first, then Share.
           </li>
           <li>
             Scroll down and tap <b>Add to Home Screen</b> <span aria-hidden="true">(⊞)</span>.
           </li>
           <li>
-            Tap <b>Add</b>. Open Anthro Collect from your Home Screen.
+            Tap <b>Add</b> (leave <b>Open as Web App</b> on if you see it). Open Anthro Collect from your Home Screen.
           </li>
         </ol>
       )}
       {mode === 'ios-other-browser' && (
         <p>
-          To install on iPhone, open this link in <b>Safari</b>, then use Share → <b>Add to Home Screen</b>.
+          To install on iPhone, open this link in <b>Safari</b>, then use Share (or ••• → Share) → <b>Add to Home Screen</b>.
         </p>
       )}
       {mode === 'other' && <p>Open this link on your phone: Chrome on Android or Safari on iPhone.</p>}

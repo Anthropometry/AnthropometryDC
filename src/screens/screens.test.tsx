@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { useEffect } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { AuthClient } from '../lib/auth'
 import type { CaptchaProps } from '../components/Turnstile'
 import type { Profile } from '../lib/profile'
@@ -132,6 +132,7 @@ describe('Install help', () => {
   it('iPhone Safari: picture guide with Share and Add to Home Screen', () => {
     render(<InstallHelp mode="ios-safari" onInstall={vi.fn()} />)
     screen.getByText('Share')
+    screen.getByText('•••')
     screen.getByText('Add to Home Screen')
     expect(screen.queryByRole('button')).toBeNull()
   })
@@ -365,7 +366,8 @@ describe('Admin screen (Amendment B)', () => {
     expect(old.querySelector('button')).toBeNull()
     const boot = screen.getByRole('article', { name: 'Code: Code boot' })
     expect(boot.textContent).toContain('Revoke')
-    expect(boot.textContent).not.toContain('Show code')
+    expect(within(boot).queryByRole('button', { name: 'Show code' })).toBeNull()
+    expect(boot.textContent).toContain("can't be shown again")
   })
 
   it('DENY: a code the database will not show gives a plain message', async () => {

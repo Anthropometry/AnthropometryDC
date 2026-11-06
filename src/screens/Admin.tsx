@@ -242,6 +242,12 @@ export function Admin({ api, myId, appUrl, shareEnv, onBack }: AdminProps) {
                   </SmallButton>
                 </div>
               )}
+              {state === 'active' && !i.canShow && (
+                <p className="text-sm text-slate-500">
+                  This code can&apos;t be shown again (made before Show code existed, or by a collector or in the SQL
+                  editor). To share it again, make a new code.
+                </p>
+              )}
               {shown?.id === i.id && state === 'active' && (
                 <CodeBox title={`Code for ${i.label}`} code={shown.code} limits={{ joinsLeft: i.maxUses - i.uses, expiresAt: i.expiresAt }} appUrl={appUrl} shareEnv={shareEnv} />
               )}

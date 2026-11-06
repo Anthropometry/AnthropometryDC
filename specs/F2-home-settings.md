@@ -1,6 +1,6 @@
 # F2: Home, settings and device self-check
 
-**Status:** draft <!-- draft | approved | built | verified — only Ryan sets "approved" -->
+**Status:** approved by Ryan, 6 Nov 2026 <!-- draft | approved | built | verified — only Ryan sets "approved" -->
 **Milestone:** M2
 **Branch:** `m2-home-practice` (F2 and F3 ship in one pull request)
 
@@ -98,15 +98,14 @@ No names, no phone numbers, no pictures in any of these. The camera check never 
 4. Deny the camera → check again → camera ✗ with the fix text.
 5. Repeat 3 on an iPhone (Safari, from the Home Screen icon).
 
-## Open questions for Ryan
+## Decided (6 Nov 2026, Ryan accepted all suggestions)
 
-1. **Screen languages:** who translates the screen words into French and Twi? Until there are
-   checked translations, I suggest screens stay English, the language choice is stored now, and it
-   is used first for the consent text in F4 (which needs translations anyway).
-2. **Face detector in the phone check:** testing it needs the MediaPipe face detector (already in
-   the tech stack) to be added now rather than in F6. I suggest leaving it to F6 and checking only
-   camera, motion sensor and storage in F2.
-3. **Who must run the check:** should a collector be blocked from Practice/Real until their phone
-   passes once, or just reminded? I suggest a reminder now, and a block before real collection (Gate A).
-4. **Admin view of checks:** a simple list on the Admin screen (name, phone model, passed/failed,
-   date), or SQL editor only? I suggest the list on the Admin screen.
+1. **Screen languages:** screens stay English for now. The language choice is stored and first used
+   for the consent text in F4.
+2. **Face detector:** not in the F2 phone check; it comes with F6. F2 checks camera, motion sensor
+   and storage (`detector_ok` stays empty).
+3. **Failing phones:** a reminder only for now; a passed check becomes required before real
+   collection (Gate A).
+4. **Admin view:** the Admin screen lists each collector's latest phone check (name, phone model,
+   passed or failed, date).
+

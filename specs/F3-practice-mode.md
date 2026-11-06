@@ -1,6 +1,6 @@
 # F3: Practice mode
 
-**Status:** draft <!-- draft | approved | built | verified — only Ryan sets "approved" -->
+**Status:** approved by Ryan, 6 Nov 2026 <!-- draft | approved | built | verified — only Ryan sets "approved" -->
 **Milestone:** M2
 **Branch:** `m2-home-practice` (F2 and F3 ship in one pull request)
 
@@ -101,16 +101,12 @@ No names anywhere (names only come with consent in F4). No measurements or photo
 3. Home has no Start real participant and shows the IRB sentence.
 4. (Ryan, SQL editor, test project only if possible) try a real participant insert → refused.
 
-## Open questions for Ryan
+## Decided (6 Nov 2026, Ryan accepted all suggestions)
 
-1. **Opening collection (Gate B):** switch `collection_open` with a button on the Admin screen
-   (with a "type OPEN to confirm" step), or only in the SQL editor? I suggest SQL editor only for
-   now; it happens once.
-2. **Removing practice records:** should collectors be able to delete their own practice
-   participants (real ones never)? I suggest yes, so lists stay tidy; real records can never be
-   deleted by collectors.
-3. **Practice data in the database:** keep practice records forever (excluded from exports), or
-   delete them all when collection opens? I suggest delete them at Gate B, with a SQL step in
-   docs/ADMIN.md.
-4. **Real participant button:** when collection opens, should Practice stay available? I suggest
-   yes, with the banner making the mode obvious.
+1. **Opening collection (Gate B):** in the Supabase SQL editor only (a snippet in docs/ADMIN.md);
+   no button in the app.
+2. **Removing practice records:** collectors can delete their **own practice** participants (and
+   any practice consent attached). Real participants can never be deleted by collectors.
+3. **Practice data at Gate B:** deleted with a SQL step in docs/ADMIN.md when collection opens.
+4. **Practice after opening:** stays available; the banner always shows the mode.
+

@@ -78,8 +78,9 @@ describe('participants: collectors see and change only their own', () => {
     )
   })
 
-  it('DENY: collectors cannot delete participants', async () => {
-    await expect(as(A, `delete from public.participants where id = $1`, [PA])).rejects.toThrow(/permission denied/)
+  it("DENY: collectors cannot delete another collector's participants (M2: own practice only, see m2.test.ts)", async () => {
+    const res = await as(A, `delete from public.participants where id = $1`, [PB])
+    expect(res.affectedRows).toBe(0)
   })
 
   it('ALLOW: A creates an own practice participant', async () => {

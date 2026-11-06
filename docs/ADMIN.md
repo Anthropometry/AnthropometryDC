@@ -104,3 +104,30 @@ Invite codes are created by admins, so the very first one is made in the SQL edi
 
 - **Rotate the login-guard secret** (if it may have leaked): run step 2 of the setup again.
   Old values stop working at once.
+
+## Phone checks (F2)
+
+Admin screen → **Phone checks** shows each collector's latest check: phone model, passed or needs
+attention, and the date. A failing phone is only a reminder for now; before real collection
+(Gate A) every collector's phone should show **Passed**.
+
+## Opening real collection (Gate B, after IRB approval only)
+
+This happens once, in the SQL editor; there is no button in the app. It deletes every practice
+participant (and any practice consent attached), then opens collection. Use your own phone number
+in the last line so the log shows who opened it.
+
+```sql
+begin;
+delete from public.participants where is_practice;
+update public.app_settings
+set collection_open = true,
+    updated_at = now(),
+    updated_by = (select id from public.collectors where phone = '+233XXXXXXXXX' and role = 'admin')
+returning collection_open, updated_at, updated_by;
+commit;
+```
+
+It must return one row with `collection_open = true` and your id in `updated_by`. Collectors see
+**Start real participant** the next time their app is online. Practice stays available, always
+under the PRACTICE banner. Record the date in DISCUSSION.md.

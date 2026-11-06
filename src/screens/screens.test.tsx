@@ -10,11 +10,28 @@ import { AppView, type AppViewProps } from '../App'
 import { Join } from './Join'
 import { SignIn } from './SignIn'
 import { Invite, type InviteApi } from './Invite'
-import { Home, Inactive, Waiting, Welcome } from './Status'
+import { Home, Inactive, Waiting, Welcome, type HomeProps } from './Status'
 import type { CollectorRow, InviteRow, MyInviteRow } from '../data/collectors'
 import { Admin, codeState, type AdminApi } from './Admin'
 
 afterEach(cleanup)
+
+const homeProps = (profile: Profile, over: Partial<HomeProps> = {}): HomeProps => ({
+  profile,
+  online: true,
+  collectionOpen: false,
+  waiting: 0,
+  lastCheck: null,
+  onPracticeNew: vi.fn(),
+  onPracticeList: vi.fn(),
+  onRealNew: vi.fn(),
+  onCheck: vi.fn(),
+  onSettings: vi.fn(),
+  onAdmin: vi.fn(),
+  onInvite: vi.fn(),
+  onSignOut: vi.fn(),
+  ...over,
+})
 
 /** Stands in for Turnstile: passes at once and records every reset. */
 const resets: number[] = []
@@ -160,7 +177,7 @@ describe('routing by status', () => {
     invite: <p>INVITE SCREEN</p>,
     install: null,
   })
-  const P: Profile = { id: 'u', displayName: 'Ama', status: 'approved', role: 'collector' }
+  const P: Profile = { id: 'u', displayName: 'Ama', status: 'approved', role: 'collector', unit: 'cm', language: 'en', settingsChosen: true }
 
   it('signed out → Welcome; join and sign-in views', () => {
     const { rerender } = render(<AppView {...base(null)} />)
@@ -180,7 +197,8 @@ describe('routing by status', () => {
   it('approved → Home; offline shows the banner', () => {
     render(<AppView {...base(P)} online={false} />)
     screen.getByText('Hello Ama')
-    expect(screen.getByRole('status').textContent).toMatch(/offline/)
+    screen.getByText('You are offline. Your work is kept on this phone.')
+    expect(screen.getByRole('status', { name: 'Sync' }).textContent).toBe('Offline: saved on this phone')
   })
 
   it.each(['rejected', 'disabled'] as const)('%s → not active', (status) => {
@@ -266,8 +284,8 @@ describe('Invite a collector (Amendment A3)', () => {
 
   it('approved collectors reach the Invite screen from Home', () => {
     const setView = vi.fn()
-    const P: Profile = { id: 'u', displayName: 'Ama', status: 'approved', role: 'collector' }
-    render(<Home profile={P} online onAdmin={vi.fn()} onInvite={() => setView('invite')} onSignOut={vi.fn()} />)
+    const P: Profile = { id: 'u', displayName: 'Ama', status: 'approved', role: 'collector', unit: 'cm', language: 'en', settingsChosen: true }
+    render(<Home {...homeProps(P)} onInvite={() => setView('invite')} />)
     fireEvent.click(screen.getByRole('button', { name: 'Invite a collector' }))
     expect(setView).toHaveBeenCalledWith('invite')
   })
@@ -276,7 +294,7 @@ describe('Invite a collector (Amendment A3)', () => {
 describe('neutral wording (Amendment A2)', () => {
   it('DENY: no screen names a person', () => {
     const { client } = fakeClient()
-    const P: Profile = { id: 'u', displayName: 'Ama', status: 'pending', role: 'collector' }
+    const P: Profile = { id: 'u', displayName: 'Ama', status: 'pending', role: 'collector', unit: 'cm', language: 'en', settingsChosen: true }
     const { container } = render(
       <>
         <Welcome onSignIn={vi.fn()} onJoin={vi.fn()} />
@@ -284,7 +302,7 @@ describe('neutral wording (Amendment A2)', () => {
         <SignIn client={client} onSignedIn={vi.fn()} onBack={vi.fn()} Captcha={SilentCaptcha} />
         <Waiting profile={P} online onCheck={vi.fn()} onSignOut={vi.fn()} />
         <Inactive onSignOut={vi.fn()} />
-        <Home profile={{ ...P, status: 'approved' }} online onAdmin={vi.fn()} onInvite={vi.fn()} onSignOut={vi.fn()} />
+        <Home {...homeProps({ ...P, status: 'approved' })} />
         <Invite api={{ list: async () => [], create: async () => '', revoke: async () => {} }} appUrl="x" shareEnv={{}} online onBack={vi.fn()} />
       </>,
     )
@@ -310,6 +328,7 @@ describe('Admin screen (Amendment B)', () => {
       createInvite: vi.fn(async () => 'NEWC2345'),
       showInvite: vi.fn(async () => 'ZJ9RPUUX'),
       revokeInvite: vi.fn(async () => {}),
+      listPhoneChecks: vi.fn(async () => []),
     } satisfies AdminApi
   }
 

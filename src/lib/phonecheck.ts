@@ -41,6 +41,22 @@ export interface PhoneCheckResult {
 
 const MIN_STORAGE_MB = 50
 
+/**
+ * A usable tilt reading. Phones with a gyroscope send orientation angles (beta/gamma); many
+ * low-cost phones have only an accelerometer, which sends gravity. Either is enough to tell
+ * whether the phone is upright, which is what F6's level lock needs.
+ */
+export function isTiltReading(e: {
+  beta?: number | null
+  gamma?: number | null
+  accelerationIncludingGravity?: { x?: number | null; y?: number | null; z?: number | null } | null
+}): boolean {
+  const g = e.accelerationIncludingGravity
+  const gravity = !!g && [g.x, g.y, g.z].some((v) => typeof v === 'number' && Number.isFinite(v) && v !== 0)
+  const angles = [e.beta, e.gamma].some((v) => typeof v === 'number' && Number.isFinite(v))
+  return gravity || angles
+}
+
 const clip = (s: string | null | undefined, max: number) => (s ? s.trim().slice(0, max) || null : null)
 
 /** Phone model, OS and browser from what the browser tells us. iPhones give no model. */
@@ -182,7 +198,7 @@ export function fixFor(line: 'camera' | 'motion' | 'storage', r: PhoneCheckResul
       : 'No working camera found. Use another phone for photos.'
   }
   if (line === 'motion' && !r.motionOk) {
-    return 'No tilt reading. Allow Motion & Orientation if asked, then check again. Without it, photos cannot be levelled.'
+    return 'No tilt reading. Allow Motion & Orientation if asked (Chrome: Site settings → Motion sensors → Allow), then check again. Without it, photos cannot be levelled.'
   }
   if (line === 'storage' && !r.storageOk) {
     return 'This phone cannot keep data offline. Free up space, and don’t use private browsing.'

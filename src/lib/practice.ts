@@ -26,7 +26,6 @@ export interface PracticeRow {
 export interface PracticeApi {
   /** Insert; returns the practice number. Must succeed quietly if the id already exists. */
   insert: (p: LocalPractice) => Promise<number | null>
-  list: () => Promise<PracticeRow[]>
   remove: (id: string) => Promise<void>
 }
 

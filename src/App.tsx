@@ -148,7 +148,6 @@ const adminApi: AdminApi | null = supabase
 
 const practiceApi: PracticeApi = {
   insert: (p) => insertPractice(db, p),
-  list: () => listPractice(db),
   remove: (id) => deletePractice(db, id),
 }
 
@@ -287,9 +286,10 @@ export default function App() {
   )
 
   const practiceLoad = useCallback(async () => {
-    const server = await listPractice(db).catch(() => [])
+    if (!profile) return []
+    const server = await listPractice(db, profile.id).catch(() => [])
     return mergePractice(server, loadWaiting(mine))
-  }, [mine])
+  }, [mine, profile])
 
   const lastCheck = useMemo(
     () => readJson<{ passed: boolean; checkedAt: string } | null>(mine, LAST_CHECK, null),

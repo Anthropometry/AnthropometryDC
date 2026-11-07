@@ -64,7 +64,14 @@ export function ConsentFlow(p: ConsentFlowProps) {
   const name = agree.name.trim()
   const guardian = agree.guardian.trim()
   const okName = (n: string) => n.length >= 1 && n.length <= 200
-  const ready = agree.data && agree.photos && okName(name) && (!forChild || okName(guardian)) && agree.signature !== null
+  const missing = [
+    !agree.data && 'tick the measurements box',
+    !agree.photos && 'tick the photos box',
+    !okName(name) && (forChild ? "type the child's name" : 'type the name'),
+    forChild && !okName(guardian) && "type the parent or guardian's name",
+    agree.signature === null && 'sign in the box',
+  ].filter((m): m is string => typeof m === 'string')
+  const ready = missing.length === 0
 
   async function save(rejected: boolean) {
     setBusy(true)
@@ -172,8 +179,8 @@ export function ConsentFlow(p: ConsentFlowProps) {
             onChange={(png) => setAgree((a) => ({ ...a, signature: png }))}
           />
           {!ready && (
-            <p className="text-sm text-slate-600">
-              Both boxes, {forChild ? 'both names' : 'a name'} and a signature are needed to continue.
+            <p role="status" className="rounded-lg bg-amber-50 p-3 text-amber-950">
+              Still needed: {missing.join(', ')}.
             </p>
           )}
           <Button disabled={!ready || busy} onClick={() => (forChild ? setStep('assent') : void save(false))}>

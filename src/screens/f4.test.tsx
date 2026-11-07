@@ -220,3 +220,20 @@ describe('F4 admin withdrawal', () => {
     await waitFor(() => screen.getByText(/Could not look that up/))
   })
 })
+
+describe('F4 consent: says exactly what is still missing', () => {
+  it('lists each missing item and drops it once done', () => {
+    renderFlow()
+    fireEvent.click(screen.getByRole('button', { name: 'Under 18' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next: consent' }))
+    const hint = () => screen.getByText(/^Still needed:/).textContent
+    expect(hint()).toBe("Still needed: tick the measurements box, tick the photos box, type the child's name, type the parent or guardian's name, sign in the box.")
+    fireEvent.click(screen.getByLabelText(/my child's body measurements/))
+    type("Child's name", 'Kofi')
+    expect(hint()).toBe("Still needed: tick the photos box, type the parent or guardian's name, sign in the box.")
+    fireEvent.click(screen.getByLabelText(/photos of my child's body/))
+    type("Parent or guardian's name", 'Akua')
+    fireEvent.click(screen.getByRole('button', { name: /Sign: Parent/ }))
+    expect(screen.queryByText(/^Still needed:/)).toBeNull()
+  })
+})

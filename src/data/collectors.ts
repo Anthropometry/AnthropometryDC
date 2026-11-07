@@ -11,12 +11,20 @@ export async function fetchOwnProfile(client: SupabaseClient): Promise<Profile |
   if (!uid) return null
   const { data, error } = await client
     .from('collectors')
-    .select('id, display_name, status, role')
+    .select('id, display_name, status, role, unit, language, settings_chosen_at')
     .eq('id', uid)
     .maybeSingle()
   if (error) throw error
   if (!data) return null
-  return parseProfile({ id: data.id, displayName: data.display_name ?? '', status: data.status, role: data.role })
+  return parseProfile({
+    id: data.id,
+    displayName: data.display_name ?? '',
+    status: data.status,
+    role: data.role,
+    unit: data.unit,
+    language: data.language,
+    settingsChosen: data.settings_chosen_at != null,
+  })
 }
 
 export interface CollectorRow {

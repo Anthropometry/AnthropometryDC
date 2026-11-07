@@ -4,6 +4,7 @@
  */
 import { useEffect, useState, type ButtonHTMLAttributes, type FormEvent, type ReactNode } from 'react'
 import type { CollectorRow, InviteRow } from '../data/collectors'
+import type { PhoneCheckRow } from '../data/fieldwork'
 import { formatInviteCode, inviteMessage, shareInvite, shortDate, type InviteLimits, type ShareEnv } from '../lib/invite'
 import { formatPhone } from '../lib/phone'
 import { Button, ErrorText, Field, Page, Title } from '../components/ui'
@@ -15,6 +16,7 @@ export interface AdminApi {
   createInvite: (label: string, maxUses: number, days: number) => Promise<string>
   showInvite: (id: string) => Promise<string>
   revokeInvite: (id: string) => Promise<void>
+  listPhoneChecks: () => Promise<PhoneCheckRow[]>
 }
 
 export interface AdminProps {
@@ -85,6 +87,7 @@ function CodeBox({ title, code, limits, appUrl, shareEnv }: { title: string; cod
 export function Admin({ api, myId, appUrl, shareEnv, onBack }: AdminProps) {
   const [collectors, setCollectors] = useState<CollectorRow[]>([])
   const [invites, setInvites] = useState<InviteRow[]>([])
+  const [checks, setChecks] = useState<PhoneCheckRow[]>([])
   const [error, setError] = useState('')
   const [newCode, setNewCode] = useState<{ code: string; limits: InviteLimits } | null>(null)
   const [shown, setShown] = useState<{ id: string; code: string } | null>(null)
@@ -96,11 +99,12 @@ export function Admin({ api, myId, appUrl, shareEnv, onBack }: AdminProps) {
 
   useEffect(() => {
     let alive = true
-    Promise.all([api.listCollectors(), api.listInvites()])
-      .then(([c, i]) => {
+    Promise.all([api.listCollectors(), api.listInvites(), api.listPhoneChecks()])
+      .then(([c, i, pc]) => {
         if (!alive) return
         setCollectors(c)
         setInvites(i)
+        setChecks(pc)
         setError('')
       })
       .catch(() => {
@@ -208,6 +212,22 @@ export function Admin({ api, myId, appUrl, shareEnv, onBack }: AdminProps) {
         ))}
       </section>
 
+      <section className="flex flex-col gap-2">
+        <h2 className="text-lg font-semibold">Phone checks</h2>
+        {checks.length === 0 && <p className="text-slate-500">No phone checks yet.</p>}
+        {checks.map((c) => (
+          <article key={c.collectorId} aria-label={`Phone check: ${c.displayName}`} className="rounded-xl border border-slate-200 p-3">
+            <p className="font-semibold">
+              {c.displayName}{' '}
+              <span className={c.passed ? 'text-emerald-700' : 'text-red-700'}>{c.passed ? '✓ Passed' : '✗ Needs attention'}</span>
+            </p>
+            <p className="text-sm text-slate-600">
+              {[c.phoneModel, c.os, c.browser].filter(Boolean).join(' · ') || 'Unknown phone'} · {shortDate(c.checkedAt)}
+            </p>
+          </article>
+        ))}
+      </section>
+
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold">Invite codes</h2>
         {newCode && <CodeBox title="New code" code={newCode.code} limits={newCode.limits} appUrl={appUrl} shareEnv={shareEnv} />}
@@ -241,6 +261,12 @@ export function Admin({ api, myId, appUrl, shareEnv, onBack }: AdminProps) {
                     Revoke
                   </SmallButton>
                 </div>
+              )}
+              {state === 'active' && !i.canShow && (
+                <p className="text-sm text-slate-500">
+                  This code can&apos;t be shown again (made before Show code existed, or by a collector or in the SQL
+                  editor). To share it again, make a new code.
+                </p>
               )}
               {shown?.id === i.id && state === 'active' && (
                 <CodeBox title={`Code for ${i.label}`} code={shown.code} limits={{ joinsLeft: i.maxUses - i.uses, expiresAt: i.expiresAt }} appUrl={appUrl} shareEnv={shareEnv} />

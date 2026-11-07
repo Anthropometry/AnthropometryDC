@@ -71,3 +71,44 @@ export function OfflineBanner({ online }: { online: boolean }) {
     </p>
   )
 }
+
+/** F3: always on collection screens, never hidden. */
+export function ModeBanner({ real }: { real: boolean }) {
+  return real ? (
+    <p role="note" className="rounded-lg bg-emerald-700 p-3 text-center font-bold tracking-wide text-white">
+      REAL COLLECTION
+    </p>
+  ) : (
+    <p role="note" className="rounded-lg bg-amber-400 p-3 text-center font-bold tracking-wide text-amber-950">
+      PRACTICE · not real data
+    </p>
+  )
+}
+
+/** F2: what is waiting to upload. */
+export function SyncBadge({ online, waiting }: { online: boolean; waiting: number }) {
+  const [text, look] = !online
+    ? ['Offline: saved on this phone', 'bg-slate-200 text-slate-800']
+    : waiting > 0
+      ? [`${waiting} waiting to upload`, 'bg-amber-100 text-amber-900']
+      : ['All saved', 'bg-emerald-100 text-emerald-900']
+  return (
+    <p role="status" aria-label="Sync" className={`self-start rounded-full px-3 py-1 text-sm font-semibold ${look}`}>
+      {text}
+    </p>
+  )
+}
+
+/** A big button that stays pressed when chosen. */
+export function Choice({ chosen, children, onClick }: { chosen: boolean; children: ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={chosen}
+      onClick={onClick}
+      className={`w-full rounded-xl border-2 py-4 text-lg font-semibold ${chosen ? 'border-brand bg-brand text-white' : 'border-slate-300 bg-white text-slate-900'}`}
+    >
+      {children}
+    </button>
+  )
+}

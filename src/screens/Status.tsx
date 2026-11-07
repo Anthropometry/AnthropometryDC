@@ -1,7 +1,9 @@
-/** Small screens: Welcome, Waiting for approval, Not active, Home. */
+/** Small screens: Welcome, Waiting for approval, Not active, Home (F2/F3). */
 import type { ReactNode } from 'react'
 import type { Profile } from '../lib/profile'
-import { Button, OfflineBanner, Page, Title } from '../components/ui'
+import { LANGUAGE_NAMES } from '../lib/settings'
+import { shortDate } from '../lib/invite'
+import { Button, ModeBanner, OfflineBanner, Page, SyncBadge, Title } from '../components/ui'
 
 export function Welcome({ onSignIn, onJoin, install }: { onSignIn: () => void; onJoin: () => void; install?: ReactNode }) {
   return (
@@ -60,39 +62,91 @@ export function Inactive({ onSignOut }: { onSignOut: () => void }) {
   )
 }
 
-export function Home({
-  profile,
-  online,
-  onAdmin,
-  onInvite,
-  onSignOut,
-  install,
-}: {
+export interface HomeProps {
   profile: Profile
   online: boolean
+  /** From app_settings; false until the project lead opens collection after IRB approval. */
+  collectionOpen: boolean
+  /** Records and settings on this phone that are not on the server yet. */
+  waiting: number
+  /** Last phone check on this phone, if any. */
+  lastCheck: { passed: boolean; checkedAt: string } | null
+  onPracticeNew: () => void
+  onPracticeList: () => void
+  onRealNew: () => void
+  onCheck: () => void
+  onSettings: () => void
   onAdmin: () => void
   onInvite: () => void
   onSignOut: () => void
   install?: ReactNode
-}) {
+}
+
+export function Home(p: HomeProps) {
+  const { profile, online } = p
   return (
     <Page>
       <OfflineBanner online={online} />
       <Title>Hello {profile.displayName}</Title>
-      <p className="text-slate-600">
-        You are signed in. Practice participants, consent, measurements and photos come in the next updates.
-      </p>
-      <Button variant="secondary" onClick={onInvite} disabled={!online}>
+      <div className="flex flex-col gap-2">
+        <SyncBadge online={online} waiting={p.waiting} />
+        <p className="text-sm text-slate-600">
+          {p.collectionOpen ? 'Real collection is open' : 'Practice only'} · {profile.unit} · {LANGUAGE_NAMES[profile.language]}
+        </p>
+      </div>
+
+      <section className="flex flex-col gap-2 rounded-xl border border-slate-200 p-4" aria-label="Phone check">
+        <h2 className="font-semibold">Phone check</h2>
+        <p className={`text-sm ${p.lastCheck && !p.lastCheck.passed ? 'text-red-800' : 'text-slate-600'}`}>
+          {p.lastCheck
+            ? `Last check: ${p.lastCheck.passed ? 'passed' : 'needs attention'} on ${shortDate(p.lastCheck.checkedAt)}`
+            : 'Not checked yet. Check before you practise.'}
+        </p>
+        <Button variant="secondary" onClick={p.onCheck}>
+          Check this phone
+        </Button>
+      </section>
+
+      <Button onClick={p.onPracticeNew}>Start practice participant</Button>
+      <Button variant="secondary" onClick={p.onPracticeList}>
+        My practice list
+      </Button>
+      {p.collectionOpen ? (
+        <Button onClick={p.onRealNew}>Start real participant</Button>
+      ) : (
+        <p className="text-slate-600">
+          Real collection opens after ethics (IRB) approval. Use practice to learn the steps.
+        </p>
+      )}
+
+      <Button variant="secondary" onClick={p.onSettings}>
+        Settings
+      </Button>
+      <Button variant="secondary" onClick={p.onInvite} disabled={!online}>
         Invite a collector
       </Button>
       {profile.role === 'admin' && (
-        <Button onClick={onAdmin} disabled={!online}>
+        <Button onClick={p.onAdmin} disabled={!online}>
           Admin: collectors and invite codes
         </Button>
       )}
-      {install}
-      <Button variant="secondary" onClick={onSignOut}>
+      {p.install}
+      <Button variant="secondary" onClick={p.onSignOut}>
         Sign out
+      </Button>
+    </Page>
+  )
+}
+
+/** Placeholder until F4 builds real participants (only reachable once collection is open). */
+export function RealComingSoon({ onBack }: { onBack: () => void }) {
+  return (
+    <Page>
+      <ModeBanner real />
+      <Title>Real participant</Title>
+      <p>Consent, measurements and photos for real participants come in the next updates (F4 to F6).</p>
+      <Button variant="secondary" onClick={onBack}>
+        Back to Home
       </Button>
     </Page>
   )

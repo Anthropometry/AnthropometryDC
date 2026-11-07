@@ -4,6 +4,7 @@ Each entry: date, topic, decision, why, files changed.
 
 | Date | Topic | Decision | Why | Changed |
 | --- | --- | --- | --- | --- |
+| 7 Nov 2026 | Database | Ryan approved `supabase db push`; `20261107120000_f4_consent.sql` applied to `vafxojfaylrlgupvahdo`. Local and remote history match (6 migrations). No table data read | Policy §7 | supabase/migrations |
 | 7 Nov 2026 | F4 test tool | `fake-indexeddb` added as a **dev-only** test tool (like the testing-library entry of 5 Nov), so the offline consent queue is tested without a browser. Not shipped in the app. **Needs Ryan's OK on PR #6** | TESTING.md lists the offline queue tested on fake IndexedDB | package.json |
 | 7 Nov 2026 | F4 practice files | Practice signatures (and later photos) are stored under `practice/` in R2; collectors' practice deletes go through the Worker, which removes the images first; at Gate B an R2 lifecycle rule clears `practice/` | Deleting a practice record must not leave its signature images behind | worker/index.ts, docs/ADMIN.md |
 | 7 Nov 2026 | F4 approved | Ryan approved `specs/F4-consent.md`: Claude drafts English practice consent text (real v1 = IRB text later); English only until French/Twi are translated; **Dexie** (IndexedDB) added for offline consents and signatures; child's mark optional; capture later = consent now, measure later; **withdrawal by a button on the Admin screen** (Worker deletes signatures from R2; log keeps only a code fingerprint) | Consent first; offline first; names stay write-only | specs/F4-consent.md, package.json |

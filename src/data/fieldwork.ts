@@ -58,9 +58,14 @@ export async function listPhoneChecks(client: SupabaseClient): Promise<PhoneChec
 }
 
 export async function fetchCollectionOpen(client: SupabaseClient): Promise<boolean> {
-  const { data, error } = await client.from('app_settings').select('collection_open').maybeSingle()
+  return (await fetchGate(client)).open
+}
+
+/** F3/F4: is real collection open, and which consent version real consents must use (null before Gate B). */
+export async function fetchGate(client: SupabaseClient): Promise<{ open: boolean; consentVersion: string | null }> {
+  const { data, error } = await client.from('app_settings').select('collection_open, consent_version').maybeSingle()
   if (error) throw error
-  return data?.collection_open === true
+  return { open: data?.collection_open === true, consentVersion: (data?.consent_version as string | null) ?? null }
 }
 
 /** Insert a practice participant; if it already arrived (a retry), read its number instead. */
@@ -77,11 +82,13 @@ export async function insertPractice(client: SupabaseClient, p: LocalPractice): 
   return (again.data?.practice_no as number | null) ?? null
 }
 
-export async function listPractice(client: SupabaseClient): Promise<PracticeRow[]> {
+/** The signed-in collector's own practice records. Admins may read everyone's, so filter by owner. */
+export async function listPractice(client: SupabaseClient, collectorId: string): Promise<PracticeRow[]> {
   const { data, error } = await client
     .from('participants')
     .select('id, practice_no, age_group, status, created_at')
     .eq('is_practice', true)
+    .eq('collector_id', collectorId)
     .order('created_at', { ascending: false })
   if (error) throw error
   return (data ?? []).map((r) => ({
@@ -94,8 +101,15 @@ export async function listPractice(client: SupabaseClient): Promise<PracticeRow[
   }))
 }
 
-export async function deletePractice(client: SupabaseClient, id: string): Promise<void> {
-  const { data, error } = await client.from('participants').delete().eq('id', id).eq('is_practice', true).select('id')
-  if (error) throw error
-  if (!data || data.length !== 1) throw new Error('not_deleted')
+/** Through the Worker, so a practice participant's signature images are deleted too (F4). */
+export async function deletePractice(
+  client: SupabaseClient,
+  id: string,
+  fetchFn: (input: string, init: RequestInit) => Promise<Response> = (i, r) => fetch(i, r),
+): Promise<void> {
+  const { data } = await client.auth.getSession()
+  const token = data.session?.access_token
+  if (!token) throw new Error('signed_out')
+  const res = await fetchFn(`/api/practice/${id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } })
+  if (res.status !== 200) throw new Error(`not_deleted_${res.status}`)
 }

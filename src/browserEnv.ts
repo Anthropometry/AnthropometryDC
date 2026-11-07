@@ -2,7 +2,7 @@
  * The real browser pieces the phone check needs (F2). Kept apart from src/lib so the logic there
  * is tested with fakes; this file is checked on phones (spec phone test script).
  */
-import type { CheckEnv, StreamLike } from './lib/phonecheck'
+import { isTiltReading, type CheckEnv, type StreamLike } from './lib/phonecheck'
 
 type OrientationWithPermission = typeof DeviceOrientationEvent & { requestPermission?: () => Promise<string> }
 type NavigatorWithUAData = Navigator & {
@@ -22,21 +22,25 @@ export function browserCheckEnv(): CheckEnv {
       Orientation && typeof Orientation.requestPermission === 'function'
         ? () => Orientation.requestPermission!()
         : undefined,
-    waitForMotion: Orientation
-      ? (ms) =>
-          new Promise<boolean>((resolve) => {
-            const onTilt = (e: DeviceOrientationEvent) => {
-              if (e.beta !== null || e.gamma !== null) finish(true)
-            }
-            const timer = setTimeout(() => finish(false), ms)
-            function finish(ok: boolean) {
-              clearTimeout(timer)
-              window.removeEventListener('deviceorientation', onTilt)
-              resolve(ok)
-            }
-            window.addEventListener('deviceorientation', onTilt)
-          })
-      : undefined,
+    // Gyroscope angles or accelerometer gravity, whichever the phone has (see isTiltReading).
+    waitForMotion:
+      Orientation || typeof DeviceMotionEvent !== 'undefined'
+        ? (ms) =>
+            new Promise<boolean>((resolve) => {
+              const onTilt = (e: Event) => {
+                if (isTiltReading(e as DeviceOrientationEvent & DeviceMotionEvent)) finish(true)
+              }
+              const timer = setTimeout(() => finish(false), ms)
+              function finish(ok: boolean) {
+                clearTimeout(timer)
+                window.removeEventListener('deviceorientation', onTilt)
+                window.removeEventListener('devicemotion', onTilt)
+                resolve(ok)
+              }
+              window.addEventListener('deviceorientation', onTilt)
+              window.addEventListener('devicemotion', onTilt)
+            })
+        : undefined,
     hasIndexedDB: (() => {
       try {
         return typeof indexedDB !== 'undefined' && indexedDB !== null

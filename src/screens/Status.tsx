@@ -138,13 +138,13 @@ export function Home(p: HomeProps) {
   )
 }
 
-/** Placeholder until F4 builds real participants (only reachable once collection is open). */
+/** Shown if collection is open but this app does not have the approved consent text (version) yet. */
 export function RealComingSoon({ onBack }: { onBack: () => void }) {
   return (
     <Page>
       <ModeBanner real />
       <Title>Real participant</Title>
-      <p>Consent, measurements and photos for real participants come in the next updates (F4 to F6).</p>
+      <p>The approved consent text is not in this version of the app yet. Ask the project lead, and use practice meanwhile.</p>
       <Button variant="secondary" onClick={onBack}>
         Back to Home
       </Button>

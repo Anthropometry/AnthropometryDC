@@ -102,7 +102,10 @@ describe('consents: collectors write but never read', () => {
   })
 
   it('DENY: A cannot write a consent for B participant', async () => {
-    await expect(as(A, newConsent(PB))).rejects.toThrow(/row-level security/)
+    // Refused either by the F4 consent rules (PB is a child, no guardian) or by row-level security.
+    await expect(as(A, newConsent(PB))).rejects.toThrow(/row-level security|consent refused/)
+    const { rows } = await db.query(`select 1 from public.consents where participant_id = $1`, [PB])
+    expect(rows).toHaveLength(0)
   })
 
   it('DENY: a consent needs both ticks', async () => {

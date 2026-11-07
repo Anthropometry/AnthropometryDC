@@ -329,6 +329,8 @@ describe('Admin screen (Amendment B)', () => {
       showInvite: vi.fn(async () => 'ZJ9RPUUX'),
       revokeInvite: vi.fn(async () => {}),
       listPhoneChecks: vi.fn(async () => []),
+      previewWithdraw: vi.fn(async () => ({ found: false, alreadyWithdrawn: false, isPractice: null, ageGroup: null, createdAt: null, collectorName: null })),
+      withdraw: vi.fn(async () => ({ outcome: 'not_found' as const })),
     } satisfies AdminApi
   }
 

@@ -5,6 +5,8 @@
 import { useEffect, useState, type ButtonHTMLAttributes, type FormEvent, type ReactNode } from 'react'
 import type { CollectorRow, InviteRow } from '../data/collectors'
 import type { PhoneCheckRow } from '../data/fieldwork'
+import type { WithdrawOutcome, WithdrawPreview } from '../data/consent'
+import { cleanReceipt, formatReceipt, isReceiptCode } from '../lib/receipt'
 import { formatInviteCode, inviteMessage, shareInvite, shortDate, type InviteLimits, type ShareEnv } from '../lib/invite'
 import { formatPhone } from '../lib/phone'
 import { Button, ErrorText, Field, Page, Title } from '../components/ui'
@@ -17,6 +19,8 @@ export interface AdminApi {
   showInvite: (id: string) => Promise<string>
   revokeInvite: (id: string) => Promise<void>
   listPhoneChecks: () => Promise<PhoneCheckRow[]>
+  previewWithdraw: (receipt: string) => Promise<WithdrawPreview>
+  withdraw: (receipt: string) => Promise<{ outcome: WithdrawOutcome; participantId?: string }>
 }
 
 export interface AdminProps {
@@ -81,6 +85,89 @@ function CodeBox({ title, code, limits, appUrl, shareEnv }: { title: string; cod
       </div>
       {note && <p className="text-sm">{note}</p>}
     </div>
+  )
+}
+
+/** F4: withdraw a participant by receipt code. Shows no name; asks for the code twice. */
+export function WithdrawSection({ api }: { api: Pick<AdminApi, 'previewWithdraw' | 'withdraw'> }) {
+  const [code, setCode] = useState('')
+  const [preview, setPreview] = useState<WithdrawPreview | null>(null)
+  const [confirm, setConfirm] = useState('')
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+  const clean = cleanReceipt(code)
+
+  async function lookUp() {
+    setMessage('')
+    setConfirm('')
+    try {
+      setPreview(await api.previewWithdraw(clean))
+    } catch {
+      setPreview(null)
+      setMessage('Could not look that up. Check your internet.')
+    }
+  }
+
+  async function go() {
+    setBusy(true)
+    try {
+      const r = await api.withdraw(clean)
+      setMessage(
+        r.outcome === 'withdrawn'
+          ? `Withdrawn. Everything for ${formatReceipt(clean)} was deleted.`
+          : r.outcome === 'not_found'
+            ? 'Nothing to withdraw for that code (already withdrawn or not found).'
+            : r.outcome === 'files_not_deleted'
+              ? `Deleted from the database, but the signature images could not be deleted. Note this id and try again later, or delete the folder ${r.participantId}/ in both R2 buckets.`
+              : r.outcome === 'forbidden'
+                ? 'Not allowed. Sign in again as an admin.'
+                : 'Could not withdraw. Check your internet and try again.',
+      )
+      if (r.outcome === 'withdrawn' || r.outcome === 'not_found') {
+        setPreview(null)
+        setCode('')
+        setConfirm('')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-3 rounded-xl border border-red-200 p-4" aria-label="Withdraw a participant">
+      <h2 className="text-lg font-semibold">Withdraw a participant</h2>
+      <p className="text-sm text-slate-600">When someone gives you their receipt code and asks to withdraw, every record and image for them is deleted.</p>
+      <Field
+        label="Receipt code"
+        value={code}
+        maxLength={12}
+        autoComplete="off"
+        onChange={(e) => {
+          setCode(e.target.value)
+          setPreview(null)
+          setMessage('')
+        }}
+      />
+      <Button variant="secondary" disabled={!isReceiptCode(clean)} onClick={() => void lookUp()}>
+        Look up
+      </Button>
+      {preview && !preview.found && (
+        <p role="status">{preview.alreadyWithdrawn ? 'Already withdrawn.' : 'No participant has that code.'}</p>
+      )}
+      {preview?.found && (
+        <div role="status" className="flex flex-col gap-2 rounded-xl bg-red-50 p-3">
+          <p>
+            {preview.isPractice ? 'Practice' : 'Real'} participant · {preview.ageGroup === 'child' ? 'Under 18' : 'Adult'} ·{' '}
+            {preview.createdAt ? shortDate(preview.createdAt) : ''} · collected by {preview.collectorName ?? 'unknown'}
+          </p>
+          <Field label="Type the code again to confirm" value={confirm} maxLength={12} autoComplete="off" onChange={(e) => setConfirm(e.target.value)} />
+          <Button variant="danger" disabled={busy || cleanReceipt(confirm) !== clean} onClick={() => void go()}>
+            {busy ? 'Withdrawing…' : 'Withdraw and delete'}
+          </Button>
+        </div>
+      )}
+      {message && <p role="status" className="text-sm">{message}</p>}
+    </section>
   )
 }
 
@@ -275,6 +362,8 @@ export function Admin({ api, myId, appUrl, shareEnv, onBack }: AdminProps) {
           )
         })}
       </section>
+
+      <WithdrawSection api={api} />
 
       <Button variant="secondary" onClick={onBack}>
         Back

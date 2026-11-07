@@ -113,21 +113,54 @@ attention, and the date. A failing phone is only a reminder for now; before real
 
 ## Opening real collection (Gate B, after IRB approval only)
 
-This happens once, in the SQL editor; there is no button in the app. It deletes every practice
-participant (and any practice consent attached), then opens collection. Use your own phone number
-in the last line so the log shows who opened it.
+This happens once, after IRB approval; there is no button in the app.
 
-```sql
-begin;
-delete from public.participants where is_practice;
-update public.app_settings
-set collection_open = true,
-    updated_at = now(),
-    updated_by = (select id from public.collectors where phone = '+233XXXXXXXXX' and role = 'admin')
-returning collection_open, updated_at, updated_by;
-commit;
-```
+1. **Consent text v1 in the app.** Give Claude Code the IRB-approved consent wording. It is added
+   word for word as version `v1` (`src/lib/consentText.ts`) in a pull request, and deployed
+   **before** step 2. Until the app has `v1`, real collectors see "The approved consent text is
+   not in this version of the app yet".
+2. **SQL editor.** This deletes every practice participant (practice consents go with them), sets
+   the approved consent version and opens collection. Use your own phone number in the last line
+   so the log shows who opened it.
 
-It must return one row with `collection_open = true` and your id in `updated_by`. Collectors see
-**Start real participant** the next time their app is online. Practice stays available, always
-under the PRACTICE banner. Record the date in DISCUSSION.md.
+   ```sql
+   begin;
+   delete from public.participants where is_practice;
+   update public.app_settings
+   set collection_open = true,
+       consent_version = 'v1',
+       updated_at = now(),
+       updated_by = (select id from public.collectors where phone = '+233XXXXXXXXX' and role = 'admin')
+   returning collection_open, consent_version, updated_at, updated_by;
+   commit;
+   ```
+
+   It must return one row with `collection_open = true`, `consent_version = v1` and your id in
+   `updated_by`.
+3. **Practice images.** Practice signatures (and later photos) are stored under the `practice/`
+   folder. In Cloudflare → R2 → each bucket (`anthro-collect-signatures`, `anthro-collect-photos`)
+   → Settings → **Object lifecycle rules** → Add rule:
+   - prefix `practice/`;
+   - delete objects 1 day after upload.
+
+   Keep the rule (practice stays available after opening, so new practice images are cleared
+   daily). Real images are never under `practice/`.
+
+Collectors see **Start real participant** the next time their app is online. Practice stays
+available, always under the PRACTICE banner. Record the date in DISCUSSION.md.
+
+## Withdrawing a participant (F4)
+
+When someone gives you their **receipt code** and asks to withdraw:
+
+1. Admin screen → **Withdraw a participant**.
+2. Type the code → **Look up**. You see practice or real, adult or under 18, the date and the
+   collector; never a name.
+3. Type the code again → **Withdraw and delete**.
+
+The participant, their consent and their signature images (later also measurements and photos) are
+deleted. A log keeps only a fingerprint of the code, the date and you, so a repeat request shows
+"Already withdrawn".
+
+If the app says the images could not be deleted, the database part is done. Try again later, or in
+Cloudflare → R2 delete the folders `<id>/` and `practice/<id>/` it shows, in both buckets.

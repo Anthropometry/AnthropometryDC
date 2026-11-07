@@ -1,6 +1,6 @@
 # F4: Participant and consent
 
-**Status:** draft <!-- draft | approved | built | verified — only Ryan sets "approved" -->
+**Status:** approved by Ryan, 7 Nov 2026 <!-- draft | approved | built | verified — only Ryan sets "approved" -->
 **Milestone:** M3
 **Branch:** `f4-consent`
 
@@ -54,6 +54,14 @@ in the restricted consent table, and the database to refuse later steps without 
    - **Done** → "Next: measurements (coming in F5)".
 5. **After consent:** the collector sees only the participant number and receipt code, never the
    name or the signature.
+6. **Admin → Withdraw a participant** (Ryan's choice, 7 Nov):
+   - Type the receipt code → the app shows only practice/real, age group, date and collector
+     (no name).
+   - Type the code again to confirm → **Withdraw**.
+   - Everything for that participant is deleted: participant, consent, signature images and, later,
+     measurements and photos.
+   - A withdrawal log keeps only a fingerprint of the code, the date and who did it, so a repeat
+     request can be answered "already withdrawn".
 
 ## Data written
 
@@ -85,6 +93,11 @@ queue). No unblurred face anywhere.
   revealing anything. F5 and F6 use it to refuse measurements and photos without consent.
 - **Receipt codes:** unique; made on the phone from the easy alphabet (no 0, O, 1, I, L), 7
   characters shown as `XXX-XXXX`. A clash (about 1 in 27 billion) is retried with a new code.
+- **Withdrawal:** `public.admin_withdraw(receipt)` (approved admins only) deletes the participant
+  (consent cascades) and returns its id. The Worker endpoint `POST /api/withdraw` checks the login,
+  calls that function with the admin's own token (so the database checks admin rights), then
+  deletes `<id>/…` from both private buckets. `withdrawals` keeps a SHA-256 of the code, the time and
+  the admin's id; no name.
 - **Worker signature upload:** the ownership check also requires `collector_id` = the uploader.
   Today an admin's oversight read would let an admin upload to anyone's participant; that is
   tightened.
@@ -160,24 +173,14 @@ queue). No unblurred face anywhere.
 5. Airplane mode → do a full adult consent → Home shows "1 waiting" → airplane off → "All saved".
 6. Ryan, SQL editor: the consent exists with the name; the collector's app never shows it.
 
-## Open questions for Ryan
+## Decided (7 Nov 2026, Ryan)
 
-1. **Consent wording:** I'll draft English text for practice from the North Anchor (student
-   research at Ashesi, what is recorded, face blur, withdrawal by receipt code, possible future app
-   use). The real **v1** must be the IRB-approved text. Will you give me the IRB text when it's
-   approved, or should I draft it for you to submit?
-2. **French and Twi:** who translates the consent (and checks the Twi)? Until then, practice can
-   show "French/Twi translation coming", or use English only. I suggest **English only for
-   practice now**, with the language choice kept so the translations drop in later.
-3. **Dexie (IndexedDB library):** it's already in the approved tech stack, but POLICY §13 asks for a
-   DISCUSSION entry before adding a library. Signatures are too big for the browser's small
-   key-value store (about 5 MB per site), so I suggest adding Dexie now.
-4. **Child's mark:** should the child also sign or make a mark, or is the collector recording the
-   child's spoken "Yes" enough? I suggest **optional**: a mark if the child wants to, otherwise the
-   recorded Yes.
-5. **"Capture later":** the North Anchor lists it under F4. I read it as "consent now, measure and
-   photograph later" (a consented participant stays in a *Waiting for measurements* list). Is that
-   right, or did you mean consent on paper captured into the app later?
-6. **Withdrawal:** when someone quotes their receipt code, you'd delete their data with a SQL step
-   in docs/ADMIN.md (participant, consent, signatures, later measurements and photos). OK to add
-   that in F4?
+1. **Wording:** Claude drafts English **practice** text from the North Anchor. The real **v1** is
+   the IRB-approved text Ryan provides later.
+2. **Languages:** English only for now. The language choice is kept, and French/Twi drop in once
+   translated and checked.
+3. **Dexie** added for offline storage (in the tech stack; DISCUSSION entry made).
+4. **Child's mark:** optional. The child's spoken Yes, recorded by the collector, is enough.
+5. **"Capture later"** = consent now, measure and photograph later. Consented participants wait in
+   a *Waiting for measurements* list (on the practice list for now).
+6. **Withdrawal:** a button on the Admin screen (screen 6 above), not a SQL step.

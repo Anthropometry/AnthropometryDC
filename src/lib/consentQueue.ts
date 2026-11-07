@@ -1,0 +1,107 @@
+/**
+ * F4 offline queue for participants, consents and signature images (IndexedDB via Dexie).
+ * Each job is sent in order: participant → consent → each signature (→ record its slot).
+ * A job is deleted from the phone only after every step is confirmed by the server (POLICY §12).
+ * Jobs are kept per collector, so nothing is sent under someone else's login on a shared phone.
+ * The full upload queue (retries, Wi-Fi only) comes in F7.
+ */
+import Dexie, { type Table } from 'dexie'
+import type { Language } from './profile'
+import type { AgeGroup } from './practice'
+
+export type SignatureSlot = 'participant' | 'guardian' | 'assent'
+export const SIGNATURE_SLOTS: readonly SignatureSlot[] = ['participant', 'guardian', 'assent']
+
+export interface ConsentRecord {
+  participantName: string
+  guardianName: string | null
+  language: Language
+  consentVersion: string
+  childAssent: boolean | null
+  signedAt: string
+}
+
+export interface ConsentJob {
+  participantId: string
+  collectorId: string
+  createdAt: string
+  isPractice: boolean
+  ageGroup: AgeGroup
+  receiptCode: string
+  /** The child said No: only a rejected participant is sent, no consent, no signatures. */
+  rejected: boolean
+  consent: ConsentRecord | null
+  /** PNG bytes per slot. */
+  signatures: Partial<Record<SignatureSlot, Uint8Array>>
+  done: { participant: boolean; consent: boolean; signatures: SignatureSlot[] }
+}
+
+export class FieldDb extends Dexie {
+  jobs!: Table<ConsentJob, string>
+  constructor(name = 'anthro-collect') {
+    super(name)
+    this.version(1).stores({ jobs: 'participantId, collectorId, createdAt' })
+  }
+}
+
+export interface ConsentApi {
+  /** Must succeed quietly if the participant already arrived (a retry). */
+  insertParticipant: (job: ConsentJob) => Promise<void>
+  /** Must succeed quietly if the consent already arrived. */
+  insertConsent: (job: ConsentJob) => Promise<void>
+  uploadSignature: (participantId: string, slot: SignatureSlot, png: Uint8Array) => Promise<void>
+  markSignature: (participantId: string, slot: SignatureSlot) => Promise<void>
+}
+
+export async function saveJob(db: FieldDb, job: ConsentJob): Promise<void> {
+  await db.jobs.put(job)
+}
+
+export async function waitingJobs(db: FieldDb, collectorId: string): Promise<ConsentJob[]> {
+  return db.jobs.where('collectorId').equals(collectorId).sortBy('createdAt')
+}
+
+export async function waitingCount(db: FieldDb, collectorId: string): Promise<number> {
+  return db.jobs.where('collectorId').equals(collectorId).count()
+}
+
+/** Send everything waiting for this collector, oldest first. Stops at the first failure. Returns how many finished. */
+export async function flushConsents(db: FieldDb, collectorId: string, api: ConsentApi): Promise<number> {
+  let finished = 0
+  for (const job of await waitingJobs(db, collectorId)) {
+    try {
+      await sendJob(db, job, api)
+    } catch {
+      break
+    }
+    finished++
+  }
+  return finished
+}
+
+async function sendJob(db: FieldDb, job: ConsentJob, api: ConsentApi): Promise<void> {
+  const save = (done: ConsentJob['done']) => db.jobs.update(job.participantId, { done })
+  let done = job.done
+  if (!done.participant) {
+    await api.insertParticipant(job)
+    done = { ...done, participant: true }
+    await save(done)
+  }
+  if (!job.rejected && job.consent && !done.consent) {
+    await api.insertConsent(job)
+    done = { ...done, consent: true }
+    await save(done)
+  }
+  if (!job.rejected) {
+    for (const slot of SIGNATURE_SLOTS) {
+      const png = job.signatures[slot]
+      if (!png || done.signatures.includes(slot)) continue
+      await api.uploadSignature(job.participantId, slot, png)
+      await api.markSignature(job.participantId, slot)
+      done = { ...done, signatures: [...done.signatures, slot] }
+      await save(done)
+    }
+  }
+  // Every step confirmed: now, and only now, the names and signatures leave this phone.
+  await db.jobs.delete(job.participantId)
+}

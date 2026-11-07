@@ -10,8 +10,13 @@ description = "Supabase secret (server) key - must never be committed"
 regex = '''sb_secret_[A-Za-z0-9_\-]{16,}'''
 keywords = ["sb_secret_"]
 
-# Supabase *publishable* keys are public by design (they ship in the app). Only that exact
-# prefix is allowed; secret keys and every other finding still fail the build.
+# Allowed values (matched against the flagged value only; every other finding still fails):
+#  - Supabase *publishable* keys are public by design (they ship in the app). Secret keys never pass.
+#  - The app's own on-phone storage slot names, e.g. 'anthro-collect.practice-waiting.v1': a fixed,
+#    readable pattern that can never be a credential (flagged only because the variable is named KEY).
 [allowlist]
-description = "Supabase publishable keys are public"
-regexes = ['''^sb_publishable_[A-Za-z0-9_\-]+$''']
+description = "Public Supabase publishable keys and the app's own localStorage names"
+regexes = [
+  '''^sb_publishable_[A-Za-z0-9_\-]+$''',
+  '''^anthro-collect\.[a-z0-9-]+\.v[0-9]+$''',
+]

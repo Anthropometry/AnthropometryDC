@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { KeyValueStore, Profile } from './profile'
 import { flushSettings, loadPendingSettings, saveSettings, withSettings } from './settings'
-import { describeDevice, fixFor, runPhoneCheck, type CheckEnv, type StreamLike } from './phonecheck'
+import { describeDevice, fixFor, isTiltReading, runPhoneCheck, type CheckEnv, type StreamLike } from './phonecheck'
 import {
   addPractice,
   flushPractice,
@@ -193,7 +193,6 @@ describe('F3 practice queue', () => {
     let no = 0
     return {
       insert: vi.fn(async () => ++no),
-      list: vi.fn(async () => []),
       remove: vi.fn(async () => {}),
       ...over,
     } as PracticeApi & { insert: ReturnType<typeof vi.fn> }
@@ -267,5 +266,22 @@ describe('F3 practice queue', () => {
   it('labels', () => {
     expect(practiceLabel(7)).toBe('P-0007')
     expect(practiceLabel(null)).toBe('P-…')
+  })
+})
+
+describe('F2 motion: gyroscope or accelerometer', () => {
+  it('ALLOW: orientation angles (gyroscope phones)', () => {
+    expect(isTiltReading({ beta: 88, gamma: -1 })).toBe(true)
+    expect(isTiltReading({ beta: 0, gamma: null })).toBe(true)
+  })
+  it('ALLOW: gravity only (low-cost phones without a gyroscope)', () => {
+    expect(isTiltReading({ beta: null, gamma: null, accelerationIncludingGravity: { x: 0.1, y: 9.7, z: 0.4 } })).toBe(true)
+  })
+  it('DENY: empty readings', () => {
+    expect(isTiltReading({ beta: null, gamma: null })).toBe(false)
+    expect(isTiltReading({ accelerationIncludingGravity: { x: null, y: null, z: null } })).toBe(false)
+    expect(isTiltReading({ accelerationIncludingGravity: { x: 0, y: 0, z: 0 } })).toBe(false)
+    expect(isTiltReading({ accelerationIncludingGravity: null })).toBe(false)
+    expect(isTiltReading({})).toBe(false)
   })
 })

@@ -24,10 +24,10 @@ Must-pass checks. A box is ticked only after Ryan tests it on a phone.
 - [x] Join with invite code → pending → approved by Ryan; phone + PIN login works on Android and iPhone; wrong PIN shows a plain message
 - [x] Installs to the Home Screen; opens offline
 
-## M2 Home + practice (F2, F3)
+## M2 Home + practice (F2, F3): done, tested by Ryan on Android and iPhone, 7 Nov 2026
 
-- [ ] Unit, language, sync badge, self-check saved
-- [ ] Practice records marked and refused as real data while collection is closed
+- [x] Unit, language, sync badge, self-check saved
+- [x] Practice records marked and refused as real data while collection is closed
 
 ## M3 Consent (F4)
 

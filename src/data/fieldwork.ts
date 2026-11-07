@@ -77,11 +77,13 @@ export async function insertPractice(client: SupabaseClient, p: LocalPractice): 
   return (again.data?.practice_no as number | null) ?? null
 }
 
-export async function listPractice(client: SupabaseClient): Promise<PracticeRow[]> {
+/** The signed-in collector's own practice records. Admins may read everyone's, so filter by owner. */
+export async function listPractice(client: SupabaseClient, collectorId: string): Promise<PracticeRow[]> {
   const { data, error } = await client
     .from('participants')
     .select('id, practice_no, age_group, status, created_at')
     .eq('is_practice', true)
+    .eq('collector_id', collectorId)
     .order('created_at', { ascending: false })
   if (error) throw error
   return (data ?? []).map((r) => ({

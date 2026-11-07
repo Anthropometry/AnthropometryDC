@@ -1,6 +1,15 @@
 /** F3: new practice participant and the collector's practice list. Always under the PRACTICE banner. */
 import { useEffect, useState } from 'react'
 import { practiceLabel, type AgeGroup, type PracticeRow } from '../lib/practice'
+import { formatReceipt } from '../lib/receipt'
+
+/** Where a participant stands, in plain words (never their name). */
+export function stateOf(r: PracticeRow): string {
+  if (r.status === 'rejected') return 'Stopped: child said no'
+  if (r.hasConsent) return 'Consented · waiting for measurements'
+  if (r.waiting && r.receiptCode) return 'Consent on this phone'
+  return 'No consent yet'
+}
 import { shortDate } from '../lib/invite'
 import { Button, Choice, ErrorText, ModeBanner, Page, Title } from '../components/ui'
 
@@ -131,6 +140,10 @@ export function PracticeList({
               <p className="text-sm text-slate-600">
                 {r.ageGroup === 'adult' ? 'Adult' : 'Under 18'} · {shortDate(r.createdAt)} ·{' '}
                 {r.waiting ? 'on this phone' : 'saved'}
+              </p>
+              <p className="text-sm text-slate-700">
+                {stateOf(r)}
+                {r.receiptCode && r.status !== 'rejected' ? ` · receipt ${formatReceipt(r.receiptCode)}` : ''}
               </p>
             </div>
             <button

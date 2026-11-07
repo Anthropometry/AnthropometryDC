@@ -21,12 +21,14 @@ export interface PracticeRow {
   createdAt: string
   /** True while it is only on this phone. */
   waiting: boolean
+  /** F4: receipt code given to the participant, and whether consent was recorded (never the consent itself). */
+  receiptCode?: string | null
+  hasConsent?: boolean
 }
 
 export interface PracticeApi {
   /** Insert; returns the practice number. Must succeed quietly if the id already exists. */
   insert: (p: LocalPractice) => Promise<number | null>
-  list: () => Promise<PracticeRow[]>
   remove: (id: string) => Promise<void>
 }
 

@@ -26,15 +26,14 @@ import {
 } from './data/collectors'
 import {
   deletePractice,
-  fetchCollectionOpen,
+  fetchGate,
   insertPractice,
   listPhoneChecks,
-  listPractice,
   saveDeviceCheck,
   saveSettingsRemote,
 } from './data/fieldwork'
 import { flushSettings, loadPendingSettings, saveSettings, withSettings, type Settings } from './lib/settings'
-import { addPractice, flushPractice, loadWaiting, mergePractice, removePractice, type PracticeApi } from './lib/practice'
+import { flushPractice, loadWaiting, mergePractice, removePractice, type PracticeApi } from './lib/practice'
 import { runPhoneCheck, type PhoneCheckResult } from './lib/phonecheck'
 import type { ShareEnv } from './lib/invite'
 import { browserCheckEnv } from './browserEnv'
@@ -46,7 +45,12 @@ import { SignIn } from './screens/SignIn'
 import { Admin, type AdminApi } from './screens/Admin'
 import { SettingsScreen } from './screens/Settings'
 import { PhoneCheck } from './screens/PhoneCheck'
-import { PracticeList, PracticeNew } from './screens/Practice'
+import { PracticeList } from './screens/Practice'
+import { ConsentFlow } from './screens/Consent'
+import { consentApi, listMine, previewWithdraw, withdraw } from './data/consent'
+import { consentText } from './lib/consentText'
+import { FieldDb, flushConsents, saveJob, waitingCount as queuedCount, waitingJobs, type ConsentJob } from './lib/consentQueue'
+import type { PracticeRow } from './lib/practice'
 import { Home, Inactive, RealComingSoon, Waiting, Welcome } from './screens/Status'
 
 export type View =
@@ -82,6 +86,8 @@ export interface AppViewProps {
   check?: ReactNode
   practiceNew?: ReactNode
   practiceList?: ReactNode
+  /** F4: the real-participant flow (only reachable once collection is open). */
+  real?: ReactNode
 }
 
 /** Pure routing: which screen for this profile and view (tested on its own). */
@@ -103,7 +109,7 @@ export function AppView(p: AppViewProps) {
   if (p.view === 'check') return <>{p.check}</>
   if (p.view === 'practice-new') return <>{p.practiceNew}</>
   if (p.view === 'practice-list') return <>{p.practiceList}</>
-  if (p.view === 'real' && open) return <RealComingSoon onBack={() => p.setView('main')} />
+  if (p.view === 'real' && open) return <>{p.real ?? <RealComingSoon onBack={() => p.setView('main')} />}</>
   return (
     <Home
       profile={p.profile!}
@@ -143,12 +149,36 @@ const adminApi: AdminApi | null = supabase
       showInvite: (id) => showInvite(db, id),
       revokeInvite: (id) => revokeInvite(db, id),
       listPhoneChecks: () => listPhoneChecks(db),
+      previewWithdraw: (r) => previewWithdraw(db, r),
+      withdraw: (r) => withdraw(db, r),
     }
   : null
 
+const sendConsent = supabase ? consentApi(db) : null
+
+/** IndexedDB can be missing (private browsing, very old phones): the phone check reports it. */
+const fieldDb: FieldDb | null = (() => {
+  try {
+    return typeof indexedDB !== 'undefined' ? new FieldDb() : null
+  } catch {
+    return null
+  }
+})()
+
+/** A job still on the phone, shown in the list without its name. */
+const jobRow = (j: ConsentJob): PracticeRow => ({
+  id: j.participantId,
+  practiceNo: null,
+  ageGroup: j.ageGroup,
+  status: j.rejected ? 'rejected' : 'draft',
+  createdAt: j.createdAt,
+  waiting: true,
+  receiptCode: j.rejected ? null : j.receiptCode,
+  hasConsent: false,
+})
+
 const practiceApi: PracticeApi = {
   insert: (p) => insertPractice(db, p),
-  list: () => listPractice(db),
   remove: (id) => deletePractice(db, id),
 }
 
@@ -166,6 +196,7 @@ const storage: KeyValueStore | undefined = (() => {
 })()
 
 const OPEN_KEY = 'anthro-collect.collection-open.v1'
+const VERSION_KEY = 'anthro-collect.consent-version.v1'
 const LAST_CHECK = 'anthro-collect.last-check.v1'
 const CHECK_PENDING = 'anthro-collect.check-pending.v1'
 
@@ -195,18 +226,22 @@ export default function App() {
   const [view, setView] = useState<View>('main')
   const [online, setOnline] = useState(navigator.onLine)
   const [collectionOpen, setCollectionOpen] = useState(() => readJson<boolean>(storage, OPEN_KEY, false) === true)
+  const [consentVersion, setConsentVersion] = useState<string | null>(() => readJson<string | null>(storage, VERSION_KEY, null))
+  const [queued, setQueued] = useState(0)
   const [tick, setTick] = useState(0)
   const bump = useCallback(() => setTick((t) => t + 1), [])
 
   const mine = useMemo(() => (profile ? scopedStore(storage, profile.id) : undefined), [profile])
 
   /** Latest profile from the server, null when signed out, or 'keep' (offline / server trouble). */
-  const loadProfile = useCallback(async (): Promise<{ profile: Profile | null; open: boolean | null } | 'keep'> => {
+  const loadProfile = useCallback(async (): Promise<
+    { profile: Profile | null; gate: { open: boolean; consentVersion: string | null } | null } | 'keep'
+  > => {
     if (!supabase) return 'keep'
     const { data } = await supabase.auth.getSession()
     if (!data.session) {
       // Only forget the collector when we know they are signed out (not merely offline).
-      return navigator.onLine ? { profile: null, open: null } : 'keep'
+      return navigator.onLine ? { profile: null, gate: null } : 'keep'
     }
     try {
       const p = await fetchOwnProfile(supabase)
@@ -216,10 +251,11 @@ export default function App() {
         await flushSettings(store, (s) => saveSettingsRemote(db, p.id, s))
         await flushPractice(store, practiceApi)
         await flushCheck(store)
-        const open = await fetchCollectionOpen(db).catch(() => null)
-        return { profile: withSettings(p, loadPendingSettings(store)), open }
+        if (fieldDb && sendConsent) await flushConsents(fieldDb, p.id, sendConsent).catch(() => 0)
+        const gate = await fetchGate(db).catch(() => null)
+        return { profile: withSettings(p, loadPendingSettings(store)), gate }
       }
-      return { profile: p, open: null }
+      return { profile: p, gate: null }
     } catch {
       return 'keep'
     }
@@ -230,9 +266,11 @@ export default function App() {
       if (r === 'keep') return
       setProfile(r.profile)
       saveCachedProfile(storage, r.profile)
-      if (r.open !== null) {
-        setCollectionOpen(r.open)
-        writeJson(storage, OPEN_KEY, r.open)
+      if (r.gate) {
+        setCollectionOpen(r.gate.open)
+        setConsentVersion(r.gate.consentVersion)
+        writeJson(storage, OPEN_KEY, r.gate.open)
+        writeJson(storage, VERSION_KEY, r.gate.consentVersion)
       }
       bump()
     })
@@ -287,9 +325,37 @@ export default function App() {
   )
 
   const practiceLoad = useCallback(async () => {
-    const server = await listPractice(db).catch(() => [])
-    return mergePractice(server, loadWaiting(mine))
-  }, [mine])
+    if (!profile) return []
+    const server = await listMine(db, true).catch(() => [])
+    const jobs = fieldDb ? (await waitingJobs(fieldDb, profile.id).catch(() => [])).filter((j) => j.isPractice) : []
+    const known = new Set(server.map((r) => r.id))
+    return mergePractice([...server, ...jobs.filter((j) => !known.has(j.participantId)).map(jobRow)], loadWaiting(mine))
+  }, [mine, profile])
+
+  // Consents waiting on this phone (IndexedDB is async, so it is counted in the background).
+  useEffect(() => {
+    let alive = true
+    if (fieldDb && profile) {
+      void queuedCount(fieldDb, profile.id)
+        .then((c) => {
+          if (alive) setQueued(c)
+        })
+        .catch(() => undefined)
+    }
+    return () => {
+      alive = false
+    }
+  }, [profile, tick])
+
+  const saveConsent = useCallback(
+    async (job: ConsentJob) => {
+      if (!fieldDb) throw new Error('no_offline_storage')
+      await saveJob(fieldDb, job)
+      bump()
+      if (sendConsent) void flushConsents(fieldDb, job.collectorId, sendConsent).then(bump, bump)
+    },
+    [bump],
+  )
 
   const lastCheck = useMemo(
     () => readJson<{ passed: boolean; checkedAt: string } | null>(mine, LAST_CHECK, null),
@@ -328,7 +394,7 @@ export default function App() {
       onAuthChanged={refresh}
       onSignOut={() => void signOut()}
       collectionOpen={collectionOpen}
-      waiting={waiting}
+      waiting={waiting + queued}
       lastCheck={lastCheck}
       join={<Join client={authClient} onJoined={afterAuth} onBack={() => setView('main')} />}
       signIn={<SignIn client={authClient} onSignedIn={afterAuth} onBack={() => setView('main')} />}
@@ -350,15 +416,30 @@ export default function App() {
         />
       }
       practiceNew={
-        <PracticeNew
-          create={async (age) => {
-            const made = await addPractice(mine, practiceApi, age)
-            bump()
-            return made
-          }}
-          onList={() => setView('practice-list')}
-          onBack={home}
-        />
+        profile ? (
+          <ConsentFlow
+            key={`practice-${view}`}
+            isPractice
+            text={consentText('practice')!}
+            collectorId={profile.id}
+            onSave={saveConsent}
+            onDone={() => setView('practice-list')}
+            onBack={home}
+          />
+        ) : null
+      }
+      real={
+        profile && consentText(consentVersion) ? (
+          <ConsentFlow
+            key={`real-${view}`}
+            isPractice={false}
+            text={consentText(consentVersion)!}
+            collectorId={profile.id}
+            onSave={saveConsent}
+            onDone={home}
+            onBack={home}
+          />
+        ) : undefined
       }
       practiceList={
         <PracticeList

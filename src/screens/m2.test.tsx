@@ -251,6 +251,8 @@ describe('Admin: phone checks (F2)', () => {
         { collectorId: 'a', displayName: 'Akosua', phoneModel: 'TECNO KI5', os: 'Android 13', browser: 'Chrome 120', passed: true, checkedAt: '2026-11-07T09:00:00Z' },
         { collectorId: 'b', displayName: 'Ann', phoneModel: null, os: null, browser: null, passed: false, checkedAt: '2026-11-06T09:00:00Z' },
       ],
+      previewWithdraw: async () => ({ found: false, alreadyWithdrawn: false, isPractice: null, ageGroup: null, createdAt: null, collectorName: null }),
+      withdraw: async () => ({ outcome: 'not_found' as const }),
     }
     render(<Admin api={api} myId="me" appUrl="x" shareEnv={{}} onBack={vi.fn()} />)
     const a = await waitFor(() => screen.getByRole('article', { name: 'Phone check: Akosua' }))

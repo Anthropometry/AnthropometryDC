@@ -6,6 +6,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { SignaturePad } from './components/SignaturePad'
+import { BoxC } from './PadDiagnosticsC'
 
 const EVENTS = [
   'pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'pointerout', 'pointerleave',
@@ -121,9 +122,10 @@ export function PadDiagnostics() {
     <main className="mx-auto flex max-w-md flex-col gap-4 px-4 py-6 text-slate-900">
       <h1 className="text-xl font-bold">Signature test (diagnostic)</h1>
       <p className="text-sm text-slate-600">
-        Nothing here is saved or sent. Draw one line in box A, then one in box B, then take a screenshot of the whole
-        page (scroll down for the log).
+        Nothing here is saved or sent. Start with box C (the app's consent screen), then boxes A and B. Screenshot each box and its log.
       </p>
+
+      <BoxC />
 
       <section ref={wrapA} className="flex flex-col gap-2 rounded-xl border-2 border-sky-300 p-3">
         <h2 className="font-semibold">Box A: the app&apos;s signature box</h2>

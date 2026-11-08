@@ -6,7 +6,13 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { parseProfile, type CollectorStatus, type Profile } from '../lib/profile'
 
 export async function fetchOwnProfile(client: SupabaseClient): Promise<Profile | null> {
-  const { data: userData } = await client.auth.getUser()
+  const { data: userData, error: userError } = await client.auth.getUser()
+  if (userError) {
+    // Only a real "not signed in" answer signs the collector out. No signal or a server hiccup
+    // throws, so the app keeps the cached collector and their work (offline first).
+    if (userError.status === 401 || userError.status === 403) return null
+    throw userError
+  }
   const uid = userData.user?.id
   if (!uid) return null
   const { data, error } = await client

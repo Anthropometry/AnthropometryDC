@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ConsentJob } from '../lib/consentQueue'
 import { consentApi, listMine, previewWithdraw, withdraw } from './consent'
 import { deletePractice } from './fieldwork'
+import { fetchOwnProfile } from './collectors'
 
 const job: ConsentJob = {
   participantId: '00000000-0000-4000-8000-000000000001',
@@ -128,5 +129,21 @@ describe('lists and withdrawal', () => {
     expect((f.mock.calls[0] as unknown as [string])[0]).toBe('/api/practice/p1')
     await expect(deletePractice(fakeClient().client, 'p1', async () => new Response('{}', { status: 403 }))).rejects.toThrow()
     await expect(deletePractice(fakeClient({ token: null }).client, 'p1', f)).rejects.toThrow(/signed_out/)
+  })
+})
+
+describe('fetchOwnProfile keeps the collector signed in when the server cannot be reached', () => {
+  const client = (error: unknown, user: unknown = null) =>
+    ({ auth: { getUser: async () => ({ data: { user }, error }) } }) as unknown as SupabaseClient
+
+  it('no signal or a server hiccup throws (the app keeps the cached collector)', async () => {
+    await expect(fetchOwnProfile(client({ status: 0, message: 'Failed to fetch' }))).rejects.toBeTruthy()
+    await expect(fetchOwnProfile(client({ status: 500, message: 'oops' }))).rejects.toBeTruthy()
+  })
+
+  it('a real "not signed in" answer returns null (the app signs out)', async () => {
+    expect(await fetchOwnProfile(client({ status: 401, message: 'bad jwt' }))).toBeNull()
+    expect(await fetchOwnProfile(client({ status: 403, message: 'forbidden' }))).toBeNull()
+    expect(await fetchOwnProfile(client(null, null))).toBeNull()
   })
 })

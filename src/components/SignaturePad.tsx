@@ -2,8 +2,11 @@
  * Finger signature (F4). Draws on a canvas and hands back PNG bytes; nothing leaves the phone
  * from here. The image is kept only in the offline queue until the server confirms it.
  *
- * Robust on phones: pointer capture is optional (Safari may refuse it), a stroke that ends outside
- * the box still counts, and if the browser can't export a PNG blob we fall back to a data URL.
+ * Fingers are drawn from TOUCH events, listened to on the canvas itself (not passive), and each
+ * touch is claimed with preventDefault so the browser never turns it into scrolling. Ryan's iPhone
+ * logs (9 Nov) showed why: drawing from pointer events alone, Safari delivered only the first touch
+ * (no movement) and then nothing, unless something else on the page listened to touches.
+ * Mouse and pen still use pointer events. PNG export falls back to a data URL.
  */
 import { useEffect, useRef, useState } from 'react'
 import { padLog } from '../lib/padLog'
@@ -48,22 +51,76 @@ export function canvasToPng(c: HTMLCanvasElement): Promise<Uint8Array | null> {
   })
 }
 
+const hasTouch = () => typeof window !== 'undefined' && 'ontouchstart' in window
+
 export function SignaturePad({ label, onChange }: PadProps) {
   const canvas = useRef<HTMLCanvasElement | null>(null)
   const drawing = useRef(false)
   const drew = useRef(false)
+  const moves = useRef(0)
   const [signed, setSigned] = useState(false)
+  // The latest onChange, for the native touch listeners (attached once).
+  const changed = useRef(onChange)
+  useEffect(() => {
+    changed.current = onChange
+  })
 
   const ctx = () => {
-    const c = canvas.current?.getContext('2d') ?? null
-    if (c) {
-      c.lineWidth = 4
-      c.lineCap = 'round'
-      c.lineJoin = 'round'
-      c.strokeStyle = '#0f172a'
+    const g = canvas.current?.getContext('2d') ?? null
+    if (g) {
+      g.lineWidth = 4
+      g.lineCap = 'round'
+      g.lineJoin = 'round'
+      g.strokeStyle = '#0f172a'
     }
-    return c
+    return g
   }
+
+  const toCanvas = (clientX: number, clientY: number) => {
+    const c = canvas.current!
+    const r = c.getBoundingClientRect()
+    const w = r.width || c.width
+    const h = r.height || c.height
+    return [((clientX - r.left) * c.width) / w, ((clientY - r.top) * c.height) / h] as const
+  }
+
+  // Stroke steps shared by touch and pointer input. Kept in a ref so the native listeners,
+  // attached once, always call the current versions.
+  const stroke = useRef({
+    start(clientX: number, clientY: number, how: string) {
+      drawing.current = true
+      moves.current = 0
+      const g = ctx()
+      padLog(`pad down ${how} · canvas ${g ? 'ok' : 'NO CONTEXT'}`)
+      if (!g) return
+      const [x, y] = toCanvas(clientX, clientY)
+      g.beginPath()
+      g.moveTo(x, y)
+      g.lineTo(x + 0.1, y + 0.1)
+      g.stroke()
+      drew.current = true
+    },
+    move(clientX: number, clientY: number) {
+      if (!drawing.current) return
+      moves.current++
+      const g = ctx()
+      if (!g) return
+      const [x, y] = toCanvas(clientX, clientY)
+      g.lineTo(x, y)
+      g.stroke()
+    },
+    end(how: string) {
+      if (!drawing.current) return
+      drawing.current = false
+      padLog(`pad ${how} after ${moves.current} moves`)
+      if (!drew.current || !canvas.current) return
+      void canvasToPng(canvas.current).then((png) => {
+        padLog(`pad image ${png ? png.length + ' bytes' : 'FAILED'}`)
+        setSigned(png !== null)
+        changed.current(png)
+      })
+    },
+  })
 
   const blank = () => {
     const c = canvas.current
@@ -77,62 +134,60 @@ export function SignaturePad({ label, onChange }: PadProps) {
   useEffect(() => {
     blank()
     padLog(`pad created "${label}"`)
-    return () => padLog(`pad REMOVED "${label}"`)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount
+    const c = canvas.current
+    if (!c) return
+    const s = stroke.current
+    // Touch: claim the touch (preventDefault, not passive) so it draws instead of scrolling.
+    const touchStart = (e: TouchEvent) => {
+      e.preventDefault()
+      // Close the keyboard if the name field still has it open.
+      if (document.activeElement instanceof HTMLElement && document.activeElement !== c) document.activeElement.blur()
+      const t = e.touches[0]
+      if (t && e.touches.length === 1) s.start(t.clientX, t.clientY, 'touch')
+    }
+    const touchMove = (e: TouchEvent) => {
+      e.preventDefault()
+      const t = e.touches[0]
+      if (t) s.move(t.clientX, t.clientY)
+    }
+    const touchEnd = (e: TouchEvent) => {
+      e.preventDefault()
+      s.end(e.type)
+    }
+    c.addEventListener('touchstart', touchStart, { passive: false })
+    c.addEventListener('touchmove', touchMove, { passive: false })
+    c.addEventListener('touchend', touchEnd, { passive: false })
+    c.addEventListener('touchcancel', touchEnd, { passive: false })
+    return () => {
+      padLog(`pad REMOVED "${label}"`)
+      c.removeEventListener('touchstart', touchStart)
+      c.removeEventListener('touchmove', touchMove)
+      c.removeEventListener('touchend', touchEnd)
+      c.removeEventListener('touchcancel', touchEnd)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- attach once per mount
   }, [])
-  const moves = useRef(0)
 
-  const point = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const c = e.currentTarget
-    const r = c.getBoundingClientRect()
-    const w = r.width || c.width
-    const h = r.height || c.height
-    return [((e.clientX - r.left) * c.width) / w, ((e.clientY - r.top) * c.height) / h] as const
-  }
+  // Mouse and pen (and touch on devices without touch events) use pointer events.
+  const isFingerHandledByTouch = (e: React.PointerEvent) => e.pointerType === 'touch' && hasTouch()
 
-  function down(e: React.PointerEvent<HTMLCanvasElement>) {
+  function pointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (isFingerHandledByTouch(e)) return
     e.preventDefault()
-    drawing.current = true
-    moves.current = 0
-    let capture = 'ok'
     try {
       e.currentTarget.setPointerCapture(e.pointerId)
-    } catch (err) {
+    } catch {
       // Optional: without capture we still draw, and leaving the box ends the stroke.
-      capture = err instanceof Error ? err.name : 'failed'
     }
-    const g = ctx()
-    padLog(`pad down ${e.pointerType} · capture ${capture} · canvas ${g ? 'ok' : 'NO CONTEXT'}`)
-    if (!g) return
-    const [x, y] = point(e)
-    g.beginPath()
-    g.moveTo(x, y)
-    g.lineTo(x + 0.1, y + 0.1)
-    g.stroke()
-    drew.current = true
+    stroke.current.start(e.clientX, e.clientY, e.pointerType || 'pointer')
   }
-
-  function move(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (!drawing.current) return
-    e.preventDefault()
-    moves.current++
-    const g = ctx()
-    if (!g) return
-    const [x, y] = point(e)
-    g.lineTo(x, y)
-    g.stroke()
+  function pointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (isFingerHandledByTouch(e)) return
+    stroke.current.move(e.clientX, e.clientY)
   }
-
-  function up(e?: React.PointerEvent<HTMLCanvasElement>) {
-    if (!drawing.current) return
-    drawing.current = false
-    padLog(`pad ${e?.type ?? 'end'} after ${moves.current} moves`)
-    if (!drew.current || !canvas.current) return
-    void canvasToPng(canvas.current).then((png) => {
-      padLog(`pad image ${png ? png.length + ' bytes' : 'FAILED'}`)
-      setSigned(png !== null)
-      onChange(png)
-    })
+  function pointerEnd(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (isFingerHandledByTouch(e)) return
+    stroke.current.end(e.type)
   }
 
   function clear() {
@@ -153,11 +208,11 @@ export function SignaturePad({ label, onChange }: PadProps) {
         aria-label={label}
         className="w-full touch-none select-none rounded-xl border-2 border-slate-300 bg-white"
         style={{ touchAction: 'none', WebkitUserSelect: 'none' }}
-        onPointerDown={down}
-        onPointerMove={move}
-        onPointerUp={up}
-        onPointerCancel={up}
-        onPointerLeave={up}
+        onPointerDown={pointerDown}
+        onPointerMove={pointerMove}
+        onPointerUp={pointerEnd}
+        onPointerCancel={pointerEnd}
+        onPointerLeave={pointerEnd}
       />
       <div className="flex items-center justify-between">
         <span className="text-sm text-slate-500" role="status">

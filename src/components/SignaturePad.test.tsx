@@ -94,3 +94,81 @@ describe('SignaturePad', () => {
     screen.getByText('Sign with your finger in the box.')
   })
 })
+
+describe('SignaturePad: fingers draw from touch events (iPhone fix, 9 Nov)', () => {
+  beforeEach(() => {
+    const ctx = { beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(), fillRect: vi.fn() }
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx as unknown as CanvasRenderingContext2D)
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (cb: BlobCallback) {
+      cb(new Blob([new Uint8Array(PNG_BYTES)]))
+    })
+    HTMLCanvasElement.prototype.setPointerCapture = vi.fn()
+  })
+
+  const touch = (x: number, y: number) => ({ clientX: x, clientY: y, identifier: 1 })
+
+  it('ALLOW: a finger stroke from touch events makes the image', async () => {
+    const onChange = vi.fn()
+    render(<SignaturePad label="Sig" onChange={onChange} />)
+    const canvas = screen.getByLabelText('Sig')
+    fireEvent.touchStart(canvas, { touches: [touch(10, 10)] })
+    fireEvent.touchMove(canvas, { touches: [touch(60, 20)] })
+    fireEvent.touchMove(canvas, { touches: [touch(90, 30)] })
+    fireEvent.touchEnd(canvas, { touches: [] })
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1))
+    expect([...onChange.mock.calls[0][0]]).toEqual(PNG_BYTES)
+    screen.getByText('Signed.')
+  })
+
+  it('claims each touch (preventDefault) so the page never scrolls instead of drawing', () => {
+    render(<SignaturePad label="Sig" onChange={vi.fn()} />)
+    const canvas = screen.getByLabelText('Sig')
+    const start = new Event('touchstart', { bubbles: true, cancelable: true })
+    Object.assign(start, { touches: [touch(10, 10)] })
+    canvas.dispatchEvent(start)
+    expect(start.defaultPrevented).toBe(true)
+    const move = new Event('touchmove', { bubbles: true, cancelable: true })
+    Object.assign(move, { touches: [touch(20, 20)] })
+    canvas.dispatchEvent(move)
+    expect(move.defaultPrevented).toBe(true)
+  })
+
+  it('a finger is not drawn twice when the browser also sends pointer events for it', async () => {
+    const onChange = vi.fn()
+    render(<SignaturePad label="Sig" onChange={onChange} />)
+    const canvas = screen.getByLabelText('Sig')
+    fireEvent.touchStart(canvas, { touches: [touch(10, 10)] })
+    fireEvent.pointerDown(canvas, { pointerType: 'touch', clientX: 10, clientY: 10 })
+    fireEvent.touchMove(canvas, { touches: [touch(40, 10)] })
+    fireEvent.pointerUp(canvas, { pointerType: 'touch' })
+    fireEvent.touchEnd(canvas, { touches: [] })
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1))
+    expect(HTMLCanvasElement.prototype.setPointerCapture).not.toHaveBeenCalled()
+  })
+
+  it('touching the box closes the keyboard left open by the name field', () => {
+    render(
+      <>
+        <input aria-label="Name" />
+        <SignaturePad label="Sig" onChange={vi.fn()} />
+      </>,
+    )
+    const name = screen.getByLabelText('Name')
+    name.focus()
+    expect(document.activeElement).toBe(name)
+    fireEvent.touchStart(screen.getByLabelText('Sig'), { touches: [touch(10, 10)] })
+    expect(document.activeElement).not.toBe(name)
+  })
+
+  it('a second finger does not start a stroke; mouse still draws', async () => {
+    const onChange = vi.fn()
+    render(<SignaturePad label="Sig" onChange={onChange} />)
+    const canvas = screen.getByLabelText('Sig')
+    fireEvent.touchStart(canvas, { touches: [touch(10, 10), touch(50, 50)] })
+    fireEvent.touchEnd(canvas, { touches: [] })
+    expect(onChange).not.toHaveBeenCalled()
+    fireEvent.pointerDown(canvas, { pointerType: 'mouse', clientX: 5, clientY: 5 })
+    fireEvent.pointerUp(canvas, { pointerType: 'mouse' })
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1))
+  })
+})

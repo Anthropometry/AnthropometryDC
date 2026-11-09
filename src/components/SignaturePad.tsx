@@ -6,6 +6,7 @@
  * the box still counts, and if the browser can't export a PNG blob we fall back to a data URL.
  */
 import { useEffect, useRef, useState } from 'react'
+import { padLog } from '../lib/padLog'
 
 export interface PadProps {
   label: string
@@ -73,7 +74,13 @@ export function SignaturePad({ label, onChange }: PadProps) {
     }
   }
 
-  useEffect(blank, [])
+  useEffect(() => {
+    blank()
+    padLog(`pad created "${label}"`)
+    return () => padLog(`pad REMOVED "${label}"`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount
+  }, [])
+  const moves = useRef(0)
 
   const point = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const c = e.currentTarget
@@ -86,12 +93,16 @@ export function SignaturePad({ label, onChange }: PadProps) {
   function down(e: React.PointerEvent<HTMLCanvasElement>) {
     e.preventDefault()
     drawing.current = true
+    moves.current = 0
+    let capture = 'ok'
     try {
       e.currentTarget.setPointerCapture(e.pointerId)
-    } catch {
+    } catch (err) {
       // Optional: without capture we still draw, and leaving the box ends the stroke.
+      capture = err instanceof Error ? err.name : 'failed'
     }
     const g = ctx()
+    padLog(`pad down ${e.pointerType} · capture ${capture} · canvas ${g ? 'ok' : 'NO CONTEXT'}`)
     if (!g) return
     const [x, y] = point(e)
     g.beginPath()
@@ -104,6 +115,7 @@ export function SignaturePad({ label, onChange }: PadProps) {
   function move(e: React.PointerEvent<HTMLCanvasElement>) {
     if (!drawing.current) return
     e.preventDefault()
+    moves.current++
     const g = ctx()
     if (!g) return
     const [x, y] = point(e)
@@ -111,17 +123,20 @@ export function SignaturePad({ label, onChange }: PadProps) {
     g.stroke()
   }
 
-  function up() {
+  function up(e?: React.PointerEvent<HTMLCanvasElement>) {
     if (!drawing.current) return
     drawing.current = false
+    padLog(`pad ${e?.type ?? 'end'} after ${moves.current} moves`)
     if (!drew.current || !canvas.current) return
     void canvasToPng(canvas.current).then((png) => {
+      padLog(`pad image ${png ? png.length + ' bytes' : 'FAILED'}`)
       setSigned(png !== null)
       onChange(png)
     })
   }
 
   function clear() {
+    padLog('pad cleared')
     blank()
     drew.current = false
     setSigned(false)

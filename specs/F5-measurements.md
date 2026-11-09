@@ -39,7 +39,7 @@ are its **ground truth**, so accuracy beats speed (principle 6).
 | 7 | Minimum age | **8 years** |
 | 8 | Clothing | **Light clothing; recorded** as light / medium / heavy |
 | 9 | Repeats | **Twice for girths** (bust/chest, waist, hip) **and height**; a third reading if the two differ by more than 1 cm |
-| 10 | Height | **Careful tape method; no weight** (see "Height protocol") |
+| 10 | Height | **Steel tape + straight edge; no weight** (see "Height protocol") |
 | 11 | Intimate measurements | **Separate consent tick** (amends F4) |
 | 12 | Female collector | **Prompt** before women's intimate measurements (not enforced) |
 | 13 | Unusual values | **Wide ranges for adults; WHO growth references for children** |
@@ -85,13 +85,28 @@ are its **ground truth**, so accuracy beats speed (principle 6).
 **Totals:** women 24 (5 intimate); men 18 (1 intimate); children 8–12: 9 (1 intimate).
 Children 13–17 get the full set for their sex. Girls 8–12 take chest girth, not bust.
 
-## Height protocol (decision 10)
+## Height protocol (decision 10, revised 9 Nov)
 
-The usual retractable body tape is about 150 cm (60 in), shorter than most adults.
-1. Barefoot, heels, back and head against a wall, looking straight ahead.
-2. A flat, hard object (book or ruler) on the head, level, touching the wall; mark the wall under it.
-3. Measure floor → mark. **If the tape is too short** the app helps (open question 1).
-4. Repeat steps 2–3 for the second reading.
+Height is the scale for every photo, so it needs a reading the collector can trust, but it should
+take under a minute and ask little of the participant.
+
+**Equipment:** a retractable **steel tape** (3 m or 5 m, cm and inch scale), plus the collector's
+usual cloth or body tape for everything else. A body tape (about 150 cm) is too short for most
+adults' height. Every collector (shop or mobile) uses the same method.
+
+**For the participant:** shoes off, headwear off if possible, stand straight against a wall or door
+frame, look straight ahead. That's all.
+
+**For the collector:**
+1. Pull the steel tape up from the floor beside the participant's heel, against the wall.
+2. Lay a **straight edge** flat on the top of the head, pressing lightly through the hair. A tailor's
+   L-square or ruler is ideal; a phone or a stiff card also works.
+3. Read the steel tape where the straight edge meets it. No marking the wall, no adding.
+4. Repeat for the second reading (×2). A third is asked if the two differ by more than 1 cm.
+
+**Recorded with height:** "hair or headwear may add height" (yes/no), for braids, buns or a wrap
+that can't come off. **Fallback** if there is no steel tape: the app also accepts the "100 cm wall
+mark" method (measure from a 100 cm mark to the head, and the app adds 100), recorded as such.
 
 ## Screens
 
@@ -135,11 +150,53 @@ The usual retractable body tape is about 150 cm (60 in), shorter than most adult
 
 ## Unusual-value ranges (decision 13)
 
-- **Adults:** wide per-measurement ranges, catching typing and reading slips (e.g. 15 for 150,
-  inches typed as cm). Kept in one table in `src/lib/measurements.ts`, reviewable by Ryan.
+- **Adults:** wide per-measurement ranges (draft below), catching typing and reading slips (e.g.
+  15 for 150, inches typed as cm). Kept in one table in `src/lib/measurements.ts`, reviewable by Ryan.
+
+**Draft adult ranges (cm), for Ryan to check.** A value outside its range triggers "Check the tape";
+it can still be kept. Drafted from common adult clothing size charts and adult anthropometric survey
+ranges, then widened so very small, very tall and very large adults don't get false alarms.
+
+| Measurement | Range (cm) | Measurement | Range (cm) |
+| --- | --- | --- | --- |
+| Height | 130 – 210 | Back length | 32 – 55 |
+| Neck girth | 28 – 55 | Waist girth | 50 – 170 |
+| Shoulder width | 30 – 60 | High hip girth | 60 – 175 |
+| Shoulder length | 9 – 20 | Hip girth | 70 – 180 |
+| Bust girth | 65 – 170 | Waist to hip | 12 – 30 |
+| Under-bust girth | 55 – 150 | Arm length | 45 – 80 |
+| Chest girth | 70 – 160 | Upper arm girth | 18 – 60 |
+| Bust point distance | 10 – 30 | Wrist girth | 12 – 24 |
+| Shoulder to bust point | 18 – 40 | Inseam | 60 – 100 |
+| Front length | 30 – 60 | Outseam | 85 – 125 |
+| Thigh girth | 35 – 95 | Waist to knee | 45 – 75 |
+| Knee girth | 28 – 55 | Shoulder to knee | 80 – 120 |
+| Calf girth | 25 – 60 | | |
 - **Children 8–17:** height from **WHO 2007 growth reference** (height-for-age, by sex), flagged
   outside about −3 to +3 standard deviations; girths and lengths by wide age-band ranges.
   The WHO values used are cited in the code.
+
+## Practical considerations (equipment and quality)
+
+- **Equipment per collector:** cloth or body tape (all girths and lengths), steel tape (height), a
+  straight edge (L-square or ruler), cleaning wipes. Who buys the steel tapes is Ryan's decision
+  (free *services* only; equipment is a project cost).
+- **Tapes stretch and differ:** cloth tapes stretch with use. At Gate A, and then monthly, each
+  collector checks the cloth tape against the steel tape at 50 cm and 100 cm. More than 0.5 cm off
+  means replace it. The app can record the check (a later feature).
+- **Steel tape hook:** its loose metal end moves on purpose (for inside and outside readings). Stand it
+  on the floor with the hook pushed in, or start from the 10 cm mark and subtract (the app does not
+  need to know).
+- **Which scale is read:** the app asks for the collector's unit (cm or inches, from Settings); steel
+  tapes have both, so read the matching side.
+- **Hair and headwear:** braids, buns and wraps can add centimetres; record the flag rather than ask
+  people to undo hairstyles.
+- **Floor:** a flat floor; outdoors, a board or mat on level ground.
+- **Hygiene and respect:** wipe tapes between participants; measure in a private, calm place; explain
+  each step before touching; intimate measurements only with the extra tick, and offer a woman
+  collector for women.
+- **Training:** a one-page card and a practice session (Practice mode) before real collection; the
+  "Before you start" card in the app repeats the key points.
 
 ## Data written
 
@@ -147,6 +204,7 @@ The usual retractable body tape is about 150 cm (60 in), shorter than most adult
 | --- | --- | --- |
 | `participants` (existing) | `sex` (female/male, existing column) | About the participant |
 | `participants` (new) | `age_years` (8–100, fits the age group), `clothing` (light/medium/heavy), `intimate_ok` (from consent), `measurements_done_at` | About / consent / Finish |
+| `measurements` height row | `height_method` (steel_tape / wall_100), `hair_adds_height` (yes/no) | Height |
 | `consents` (new column, F4 amendment) | `agreed_intimate` (boolean) | Consent |
 | `measurements` (new) | `participant_id`, `code`, `unit` (cm/in), `readings_typed` (each reading exactly as entered, e.g. `34 3/8`), `readings_cm`, `value_cm` (0.1 cm), `skipped`, `skip_reason`, `skip_note`, `confirmed_unusual`, `measured_at`, `collector_id`, `updated_at` | Next / Skip; one row per participant and code; changing it updates the row |
 | Phone (IndexedDB) | waiting measurement rows | Until the server confirms |
@@ -231,12 +289,7 @@ The usual retractable body tape is about 150 cm (60 in), shorter than most adult
 
 ## Open questions for Ryan
 
-1. **Height with a 150 cm tape:**
-   - (a) the app adds a fixed 100 cm (mark 100 cm on the wall once, measure from that mark to the
-     head mark, and the app adds 100);
-   - (b) collectors get a 2 m tape for height;
-   - (c) a height board.
-
-   I suggest (a): free and accurate if the 100 cm mark is made carefully. The app shows both parts.
-2. **Adult range table:** I'll draft wide ranges from common size charts and show them in the PR for
-   you to check. OK?
+1. **Height:** steel tape + straight edge (above), with the 100 cm wall mark only as a fallback.
+   Confirm, and who provides the steel tapes?
+2. **Adult range table** (draft above): change any value you think is wrong.
+3. **Tape check:** add a monthly "check your tape" step (cloth against steel) in a later feature?

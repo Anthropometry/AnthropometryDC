@@ -46,7 +46,7 @@ import { Admin, type AdminApi } from './screens/Admin'
 import { SettingsScreen } from './screens/Settings'
 import { PhoneCheck } from './screens/PhoneCheck'
 import { PracticeList } from './screens/Practice'
-import { padLog, padLogOn } from './lib/padLog'
+import { padLog, padLogMode, padLogPanelOn } from './lib/padLog'
 import { PadLogOverlay } from './components/PadLogOverlay'
 import { ConsentFlow } from './screens/Consent'
 import { consentApi, listMine, previewWithdraw, withdraw } from './data/consent'
@@ -236,6 +236,7 @@ export default function App() {
   const mine = useMemo(() => (profile ? scopedStore(storage, profile.id) : undefined), [profile])
 
   // Hidden diagnostic log (?pad-log): which screen, and every change to the signed-in collector.
+  useEffect(() => padLog(`--- page loaded (log ${padLogMode}) ---`), [])
   useEffect(() => padLog(`app view ${view}`), [view])
   useEffect(
     () => padLog(`app collector ${profile ? `${profile.status}, setup ${profile.settingsChosen ? 'done' : 'not done'}` : 'none'}`),
@@ -476,7 +477,7 @@ export default function App() {
     />
   )
   // Hidden diagnostic log (?pad-log): off for everyone else, so the app is unchanged for them.
-  return padLogOn ? (
+  return padLogPanelOn ? (
     <>
       {app}
       <PadLogOverlay />

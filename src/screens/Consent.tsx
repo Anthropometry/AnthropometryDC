@@ -3,7 +3,8 @@
  * Consent comes before any measurement or photo (POLICY §10). After saving, the name and signature
  * are never shown again; they go to the offline queue and leave the phone once the server confirms.
  */
-import { useState, type ComponentType } from 'react'
+import { useEffect, useState, type ComponentType } from 'react'
+import { padLog } from '../lib/padLog'
 import type { ConsentText } from '../lib/consentText'
 import type { ConsentJob, SignatureSlot } from '../lib/consentQueue'
 import type { AgeGroup } from '../lib/practice'
@@ -72,6 +73,16 @@ export function ConsentFlow(p: ConsentFlowProps) {
     agree.signature === null && 'sign in the box',
   ].filter((m): m is string => typeof m === 'string')
   const ready = missing.length === 0
+
+  useEffect(() => {
+    padLog('consent screen created')
+    return () => padLog('consent screen REMOVED')
+  }, [])
+  useEffect(() => padLog(`step ${step}`), [step])
+  const missingKey = missing.join(', ')
+  useEffect(() => {
+    if (step === 'consent') padLog(missingKey ? `still needed: ${missingKey}` : 'ready: Save is on')
+  }, [missingKey, step])
 
   async function save(rejected: boolean) {
     setBusy(true)

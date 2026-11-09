@@ -46,6 +46,8 @@ import { Admin, type AdminApi } from './screens/Admin'
 import { SettingsScreen } from './screens/Settings'
 import { PhoneCheck } from './screens/PhoneCheck'
 import { PracticeList } from './screens/Practice'
+import { padLog, padLogOn } from './lib/padLog'
+import { PadLogOverlay } from './components/PadLogOverlay'
 import { ConsentFlow } from './screens/Consent'
 import { consentApi, listMine, previewWithdraw, withdraw } from './data/consent'
 import { consentText } from './lib/consentText'
@@ -233,6 +235,13 @@ export default function App() {
 
   const mine = useMemo(() => (profile ? scopedStore(storage, profile.id) : undefined), [profile])
 
+  // Hidden diagnostic log (?pad-log): which screen, and every change to the signed-in collector.
+  useEffect(() => padLog(`app view ${view}`), [view])
+  useEffect(
+    () => padLog(`app collector ${profile ? `${profile.status}, setup ${profile.settingsChosen ? 'done' : 'not done'}` : 'none'}`),
+    [profile],
+  )
+
   /** Latest profile from the server, null when signed out, or 'keep' (offline / server trouble). */
   const loadProfile = useCallback(async (): Promise<
     { profile: Profile | null; gate: { open: boolean; consentVersion: string | null } | null } | 'keep'
@@ -262,7 +271,9 @@ export default function App() {
   }, [])
 
   const refresh = useCallback(() => {
+    padLog('app refresh started')
     void loadProfile().then((r) => {
+      padLog(`app refresh done: ${r === 'keep' ? 'kept' : r.profile ? `${r.profile.status}, setup ${r.profile.settingsChosen ? 'done' : 'not done'}` : 'signed out'}`)
       if (r === 'keep') return
       setProfile(r.profile)
       saveCachedProfile(storage, r.profile)
@@ -286,6 +297,7 @@ export default function App() {
     window.addEventListener('offline', down)
     refresh()
     const sub = supabase?.auth.onAuthStateChange((event) => {
+      padLog(`auth event ${event}`)
       if (event === 'SIGNED_OUT') {
         setProfile(null)
         saveCachedProfile(storage, null)
@@ -385,7 +397,7 @@ export default function App() {
   }
   const settingsValue = profile ? { unit: profile.unit, language: profile.language } : { unit: 'cm' as const, language: 'en' as const }
 
-  return (
+  const app = (
     <AppView
       profile={profile}
       view={view}
@@ -462,5 +474,14 @@ export default function App() {
       }
       install={<InstallArea />}
     />
+  )
+  // Hidden diagnostic log (?pad-log): off for everyone else, so the app is unchanged for them.
+  return padLogOn ? (
+    <>
+      {app}
+      <PadLogOverlay />
+    </>
+  ) : (
+    app
   )
 }

@@ -153,7 +153,7 @@ mark" method (measure from a 100 cm mark to the head, and the app adds 100), rec
 - **Adults:** wide per-measurement ranges (draft below), catching typing and reading slips (e.g.
   15 for 150, inches typed as cm). Kept in one table in `src/lib/measurements.ts`, reviewable by Ryan.
 
-**Draft adult ranges (cm), for Ryan to check.** A value outside its range triggers "Check the tape";
+**Adult ranges (cm), accepted by Ryan without changes (9 Nov).** A value outside its range triggers "Check the tape";
 it can still be kept. Drafted from common adult clothing size charts and adult anthropometric survey
 ranges, then widened so very small, very tall and very large adults don't get false alarms.
 
@@ -179,11 +179,11 @@ ranges, then widened so very small, very tall and very large adults don't get fa
 ## Practical considerations (equipment and quality)
 
 - **Equipment per collector:** cloth or body tape (all girths and lengths), steel tape (height), a
-  straight edge (L-square or ruler), cleaning wipes. Who buys the steel tapes is Ryan's decision
-  (free *services* only; equipment is a project cost).
+  straight edge (L-square or ruler), cleaning wipes. The **project coordinator provides the steel
+  tapes** (decided 9 Nov).
 - **Tapes stretch and differ:** cloth tapes stretch with use. At Gate A, and then monthly, each
   collector checks the cloth tape against the steel tape at 50 cm and 100 cm. More than 0.5 cm off
-  means replace it. The app can record the check (a later feature).
+  means replace it. This is a training practice, **not a step in the app** (decided 9 Nov).
 - **Steel tape hook:** its loose metal end moves on purpose (for inside and outside readings). Stand it
   on the floor with the hook pushed in, or start from the 10 cm mark and subtract (the app does not
   need to know).
@@ -289,7 +289,8 @@ ranges, then widened so very small, very tall and very large adults don't get fa
 
 ## Open questions for Ryan
 
-1. **Height:** steel tape + straight edge (above), with the 100 cm wall mark only as a fallback.
-   Confirm, and who provides the steel tapes?
-2. **Adult range table** (draft above): change any value you think is wrong.
-3. **Tape check:** add a monthly "check your tape" step (cloth against steel) in a later feature?
+None. Answered by Ryan, 9 Nov 2026:
+1. **Height:** steel tape + straight edge, with the 100 cm wall mark only as a fallback. The
+   **project coordinator provides the steel tapes.**
+2. **Adult ranges:** the draft table above, **no changes**.
+3. **Tape check:** **not** a step in the app; it stays a practice in training (see Practical considerations).

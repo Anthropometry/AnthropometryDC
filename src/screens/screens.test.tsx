@@ -111,7 +111,7 @@ describe('Sign in screen', () => {
     type('6-digit PIN', '000001')
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Phone number or PIN is not right.'))
-    expect(resets).toEqual([0, 1]) // a fresh check after the failure
+    await waitFor(() => expect(resets).toEqual([0, 1])) // a fresh check after the failure
     expect((screen.getByLabelText('6-digit PIN') as HTMLInputElement).value).toBe('')
   })
 

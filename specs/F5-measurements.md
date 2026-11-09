@@ -1,6 +1,6 @@
 # F5: Measurements
 
-**Status:** draft, decisions recorded 9 Nov 2026, awaiting Ryan's approval <!-- draft | approved | built | verified — only Ryan sets "approved" -->
+**Status:** approved by Ryan, 9 Nov 2026 <!-- draft | approved | built | verified — only Ryan sets "approved" -->
 **Milestone:** M4
 **Branch:** `f5-measurements`
 **Also amends F4** (one extra consent tick, see B2).
@@ -141,8 +141,10 @@ mark" method (measure from a 100 cm mark to the head, and the app adds 100), rec
 
 ## Consistency rules (warnings, decision 14)
 
-- under-bust < bust; waist < bust (women) or < chest (men), unless confirmed;
-- high hip ≤ hip; waist ≤ hip + 20 cm;
+- under-bust < bust;
+- high hip ≤ hip (+2 cm); waist ≤ hip + 20 cm;
+- (waist against bust or chest is **not** checked: many heavier people have a larger waist, so it
+  would warn wrongly and teach collectors to ignore warnings);
 - inseam < outseam < height; arm length < height / 2;
 - waist to knee < shoulder to knee < height; back length < height / 3;
 - wrist < upper arm; knee < thigh; calf < thigh;

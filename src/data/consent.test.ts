@@ -97,7 +97,9 @@ describe('consentApi', () => {
 describe('lists and withdrawal', () => {
   it('listMine maps rows and never includes a name', async () => {
     const { client } = fakeClient({ rpc: [{ id: 'a', practice_no: 2, age_group: 'child', status: 'draft', receipt_code: 'R7K2MPQ', created_at: 'x', has_consent: true }] })
-    expect(await listMine(client, true)).toEqual([{ id: 'a', practiceNo: 2, ageGroup: 'child', status: 'draft', createdAt: 'x', waiting: false, receiptCode: 'R7K2MPQ', hasConsent: true }])
+    expect(await listMine(client, true)).toEqual([
+      { id: 'a', practiceNo: 2, ageGroup: 'child', status: 'draft', createdAt: 'x', waiting: false, receiptCode: 'R7K2MPQ', hasConsent: true, measured: false, intimateOk: false, sex: null, ageYears: null },
+    ])
   })
 
   it('previewWithdraw maps the answer', async () => {

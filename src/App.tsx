@@ -49,6 +49,18 @@ import { PracticeList } from './screens/Practice'
 import { padLog, padLogMode, padLogPanelOn } from './lib/padLog'
 import { PadLogOverlay } from './components/PadLogOverlay'
 import { ConsentFlow } from './screens/Consent'
+import { MeasureFlow, type MeasureStore } from './screens/Measure'
+import { fetchEntries, measureApi } from './data/measure'
+import {
+  finishDraft,
+  flushMeasurements,
+  loadDraft,
+  saveAbout as saveAboutLocal,
+  saveEntry as saveEntryLocal,
+  startDraft,
+  waitingOps,
+  type MeasureDraft,
+} from './lib/measureQueue'
 import { consentApi, listMine, previewWithdraw, withdraw } from './data/consent'
 import { consentText } from './lib/consentText'
 import { FieldDb, flushConsents, saveJob, waitingCount as queuedCount, waitingJobs, type ConsentJob } from './lib/consentQueue'
@@ -66,6 +78,7 @@ export type View =
   | 'practice-new'
   | 'practice-list'
   | 'real'
+  | 'measure'
 
 export interface AppViewProps {
   profile: Profile | null
@@ -90,6 +103,8 @@ export interface AppViewProps {
   practiceList?: ReactNode
   /** F4: the real-participant flow (only reachable once collection is open). */
   real?: ReactNode
+  /** F5: measuring one participant. */
+  measure?: ReactNode
 }
 
 /** Pure routing: which screen for this profile and view (tested on its own). */
@@ -111,6 +126,7 @@ export function AppView(p: AppViewProps) {
   if (p.view === 'check') return <>{p.check}</>
   if (p.view === 'practice-new') return <>{p.practiceNew}</>
   if (p.view === 'practice-list') return <>{p.practiceList}</>
+  if (p.view === 'measure' && p.measure) return <>{p.measure}</>
   if (p.view === 'real' && open) return <>{p.real ?? <RealComingSoon onBack={() => p.setView('main')} />}</>
   return (
     <Home
@@ -157,6 +173,7 @@ const adminApi: AdminApi | null = supabase
   : null
 
 const sendConsent = supabase ? consentApi(db) : null
+const sendMeasure = supabase ? measureApi(db) : null
 
 /** IndexedDB can be missing (private browsing, very old phones): the phone check reports it. */
 const fieldDb: FieldDb | null = (() => {
@@ -177,6 +194,7 @@ const jobRow = (j: ConsentJob): PracticeRow => ({
   waiting: true,
   receiptCode: j.rejected ? null : j.receiptCode,
   hasConsent: false,
+  intimateOk: j.consent?.agreedIntimate === true,
 })
 
 const practiceApi: PracticeApi = {
@@ -262,6 +280,8 @@ export default function App() {
         await flushPractice(store, practiceApi)
         await flushCheck(store)
         if (fieldDb && sendConsent) await flushConsents(fieldDb, p.id, sendConsent).catch(() => 0)
+        // Measurements after consents: the database refuses them without consent.
+        if (fieldDb && sendMeasure) await flushMeasurements(fieldDb, p.id, sendMeasure).catch(() => 0)
         const gate = await fetchGate(db).catch(() => null)
         return { profile: withSettings(p, loadPendingSettings(store)), gate }
       }
@@ -349,9 +369,9 @@ export default function App() {
   useEffect(() => {
     let alive = true
     if (fieldDb && profile) {
-      void queuedCount(fieldDb, profile.id)
-        .then((c) => {
-          if (alive) setQueued(c)
+      void Promise.all([queuedCount(fieldDb, profile.id), waitingOps(fieldDb, profile.id)])
+        .then(([c, m]) => {
+          if (alive) setQueued(c + m)
         })
         .catch(() => undefined)
     }
@@ -359,6 +379,66 @@ export default function App() {
       alive = false
     }
   }, [profile, tick])
+
+  // F5: the participant being measured, and how its changes are kept and sent.
+  const [measuring, setMeasuring] = useState<MeasureDraft | null>(null)
+  const sendAll = useCallback(
+    (collectorId: string) => {
+      if (!fieldDb) return
+      void (async () => {
+        if (sendConsent) await flushConsents(fieldDb, collectorId, sendConsent).catch(() => 0)
+        if (sendMeasure) await flushMeasurements(fieldDb, collectorId, sendMeasure).catch(() => 0)
+      })().then(bump, bump)
+    },
+    [bump],
+  )
+  const measureStore: MeasureStore = useMemo(
+    () => ({
+      about: async (d, a) => {
+        const next = await saveAboutLocal(fieldDb!, d, a)
+        bump()
+        sendAll(d.collectorId)
+        return next
+      },
+      entry: async (d, e) => {
+        const next = await saveEntryLocal(fieldDb!, d, e)
+        bump()
+        sendAll(d.collectorId)
+        return next
+      },
+      finish: async (d) => {
+        const next = await finishDraft(fieldDb!, d, new Date().toISOString())
+        bump()
+        sendAll(d.collectorId)
+        return next
+      },
+    }),
+    [bump, sendAll],
+  )
+  const openMeasure = useCallback(
+    async (
+      m: { participantId: string; isPractice: boolean; ageGroup: 'adult' | 'child'; intimateOk: boolean },
+      fresh = false,
+    ) => {
+      if (!fieldDb || !profile) return
+      let draft = await loadDraft(fieldDb, m.participantId)
+      if (!draft) {
+        // Measured before on another visit: start from what the server has (own participants only).
+        // Not for a consent just made (nothing on the server), and never waiting long for a bad signal.
+        const entries =
+          fresh || !navigator.onLine
+            ? {}
+            : await Promise.race([
+                fetchEntries(db, m.participantId).catch(() => ({})),
+                new Promise<Record<string, never>>((resolve) => setTimeout(() => resolve({}), 4000)),
+              ])
+        draft = await startDraft(fieldDb, { ...m, collectorId: profile.id, entries })
+      }
+      setMeasuring(draft)
+      setView('measure')
+    },
+    [profile],
+  )
 
   const saveConsent = useCallback(
     async (job: ConsentJob) => {
@@ -438,6 +518,7 @@ export default function App() {
             onSave={saveConsent}
             onDone={() => setView('practice-list')}
             onBack={home}
+            onMeasure={(m) => void openMeasure(m, true)}
           />
         ) : null
       }
@@ -451,6 +532,19 @@ export default function App() {
             onSave={saveConsent}
             onDone={home}
             onBack={home}
+            onMeasure={(m) => void openMeasure(m, true)}
+          />
+        ) : undefined
+      }
+      measure={
+        measuring && profile ? (
+          <MeasureFlow
+            key={measuring.participantId}
+            draft={measuring}
+            unit={profile.unit}
+            store={measureStore}
+            onDone={() => setView('practice-list')}
+            onBack={() => setView('practice-list')}
           />
         ) : undefined
       }
@@ -463,6 +557,14 @@ export default function App() {
           }}
           onNew={() => setView('practice-new')}
           onBack={home}
+          onMeasure={(r) =>
+            void openMeasure({
+              participantId: r.id,
+              isPractice: true,
+              ageGroup: r.ageGroup,
+              intimateOk: r.intimateOk === true,
+            })
+          }
         />
       }
       admin={

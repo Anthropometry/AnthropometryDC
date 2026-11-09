@@ -3,9 +3,15 @@ import { useEffect, useState } from 'react'
 import { practiceLabel, type AgeGroup, type PracticeRow } from '../lib/practice'
 import { formatReceipt } from '../lib/receipt'
 
+/** Can this participant be measured now (consent given, not stopped)? */
+export function canMeasure(r: PracticeRow): boolean {
+  return r.status !== 'rejected' && (r.hasConsent === true || (r.waiting && !!r.receiptCode))
+}
+
 /** Where a participant stands, in plain words (never their name). */
 export function stateOf(r: PracticeRow): string {
   if (r.status === 'rejected') return 'Stopped: child said no'
+  if (r.measured) return 'Measured'
   if (r.hasConsent) return 'Consented · waiting for measurements'
   if (r.waiting && r.receiptCode) return 'Consent on this phone'
   return 'No consent yet'
@@ -87,11 +93,14 @@ export function PracticeList({
   remove,
   onNew,
   onBack,
+  onMeasure,
 }: {
   load: () => Promise<PracticeRow[]>
   remove: (row: PracticeRow) => Promise<void>
   onNew: () => void
   onBack: () => void
+  /** F5: open measuring for a consented participant. */
+  onMeasure?: (row: PracticeRow) => void
 }) {
   const [rows, setRows] = useState<PracticeRow[]>([])
   const [version, setVersion] = useState(0)
@@ -146,13 +155,24 @@ export function PracticeList({
                 {r.receiptCode && r.status !== 'rejected' ? ` · receipt ${formatReceipt(r.receiptCode)}` : ''}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => void del(r)}
-              className="rounded-lg border-2 border-red-700 bg-white px-3 py-2 font-semibold text-red-700"
-            >
-              {confirm === r.id ? 'Tap again to delete' : 'Delete'}
-            </button>
+            <div className="flex shrink-0 flex-col gap-2">
+              {onMeasure && canMeasure(r) && (
+                <button
+                  type="button"
+                  onClick={() => onMeasure(r)}
+                  className="rounded-lg border-2 border-brand bg-white px-3 py-2 font-semibold text-brand"
+                >
+                  {r.measured ? 'View' : 'Measure'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void del(r)}
+                className="rounded-lg border-2 border-red-700 bg-white px-3 py-2 font-semibold text-red-700"
+              >
+                {confirm === r.id ? 'Tap again to delete' : 'Delete'}
+              </button>
+            </div>
           </li>
         ))}
       </ul>

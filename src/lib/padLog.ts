@@ -1,33 +1,61 @@
 /**
  * Temporary, hidden diagnostic log for the iPhone signature problem (F4). OFF for everyone.
- * Turned on only for this browser tab by opening the app with `?pad-log` (and off with
- * `?pad-log-off`). It records events and states, never what anyone types: no names, no phone
- * numbers, no signatures. Nothing is sent anywhere; it is shown on screen only.
- * To be removed once the cause is fixed.
+ * Switched on for this browser tab only, by opening the app with:
+ *   ?pad-log        record and show the log panel (adds a bar and page-wide touch logging)
+ *   ?pad-log=quiet  record silently: nothing is added to the screen or the page
+ *   ?pad-log=show   show the panel again, with what was recorded so far in this tab
+ *   ?pad-log-off    stop and forget
+ * It records events and states, never what anyone types: no names, no phone numbers, no
+ * signatures. Nothing is sent anywhere. To be removed once the cause is fixed.
  */
 const KEY = 'anthro-collect.pad-log'
-const MAX = 80
+const LINES_KEY = 'anthro-collect.pad-log-lines'
+const MAX = 120
 
-function readSwitch(): boolean {
+export type PadLogMode = 'off' | 'quiet' | 'show'
+
+function readMode(): PadLogMode {
   try {
     const q = new URLSearchParams(window.location.search)
-    if (q.has('pad-log-off')) window.sessionStorage.removeItem(KEY)
-    else if (q.has('pad-log')) window.sessionStorage.setItem(KEY, '1')
-    return window.sessionStorage.getItem(KEY) === '1'
+    if (q.has('pad-log-off')) {
+      window.sessionStorage.removeItem(KEY)
+      window.sessionStorage.removeItem(LINES_KEY)
+    } else if (q.has('pad-log')) {
+      window.sessionStorage.setItem(KEY, q.get('pad-log') === 'quiet' ? 'quiet' : 'show')
+    }
+    const m = window.sessionStorage.getItem(KEY)
+    return m === 'quiet' || m === 'show' ? m : 'off'
   } catch {
-    return false
+    return 'off'
   }
 }
 
-export const padLogOn: boolean = typeof window !== 'undefined' && readSwitch()
+export const padLogMode: PadLogMode = typeof window !== 'undefined' ? readMode() : 'off'
+export const padLogOn = padLogMode !== 'off'
+/** Only in "show" mode does the app add the panel and the page-wide touch and keyboard logging. */
+export const padLogPanelOn = padLogMode === 'show'
 
-const lines: string[] = []
+/** Lines survive a reload in the same tab, so a quiet run can be read afterwards with =show. */
+const lines: string[] = (() => {
+  if (!padLogOn) return []
+  try {
+    const saved = JSON.parse(window.sessionStorage.getItem(LINES_KEY) ?? '[]') as unknown
+    return Array.isArray(saved) ? saved.filter((l): l is string => typeof l === 'string').slice(-MAX) : []
+  } catch {
+    return []
+  }
+})()
 const subscribers = new Set<() => void>()
 
 export function padLog(message: string): void {
   if (!padLogOn) return
-  lines.push(`${(performance.now() / 1000).toFixed(2)}s ${message}`)
+  lines.push(`${new Date().toISOString().slice(11, 19)} ${message}`)
   if (lines.length > MAX) lines.shift()
+  try {
+    window.sessionStorage.setItem(LINES_KEY, JSON.stringify(lines))
+  } catch {
+    // keep in memory only
+  }
   subscribers.forEach((s) => s())
 }
 

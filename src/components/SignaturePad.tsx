@@ -4,12 +4,11 @@
  *
  * Fingers are drawn from TOUCH events, listened to on the canvas itself (not passive), and each
  * touch is claimed with preventDefault so the browser never turns it into scrolling. Ryan's iPhone
- * logs (9 Nov) showed why: drawing from pointer events alone, Safari delivered only the first touch
- * (no movement) and then nothing, unless something else on the page listened to touches.
+ * logs (9 Nov, see DISCUSSION.md) showed why: drawing from pointer events alone, Safari delivered
+ * only the first touch (no movement) and then nothing in the app.
  * Mouse and pen still use pointer events. PNG export falls back to a data URL.
  */
 import { useEffect, useRef, useState } from 'react'
-import { padLog } from '../lib/padLog'
 
 export interface PadProps {
   label: string
@@ -87,11 +86,10 @@ export function SignaturePad({ label, onChange }: PadProps) {
   // Stroke steps shared by touch and pointer input. Kept in a ref so the native listeners,
   // attached once, always call the current versions.
   const stroke = useRef({
-    start(clientX: number, clientY: number, how: string) {
+    start(clientX: number, clientY: number) {
       drawing.current = true
       moves.current = 0
       const g = ctx()
-      padLog(`pad down ${how} · canvas ${g ? 'ok' : 'NO CONTEXT'}`)
       if (!g) return
       const [x, y] = toCanvas(clientX, clientY)
       g.beginPath()
@@ -109,13 +107,11 @@ export function SignaturePad({ label, onChange }: PadProps) {
       g.lineTo(x, y)
       g.stroke()
     },
-    end(how: string) {
+    end() {
       if (!drawing.current) return
       drawing.current = false
-      padLog(`pad ${how} after ${moves.current} moves`)
       if (!drew.current || !canvas.current) return
       void canvasToPng(canvas.current).then((png) => {
-        padLog(`pad image ${png ? png.length + ' bytes' : 'FAILED'}`)
         setSigned(png !== null)
         changed.current(png)
       })
@@ -133,7 +129,6 @@ export function SignaturePad({ label, onChange }: PadProps) {
 
   useEffect(() => {
     blank()
-    padLog(`pad created "${label}"`)
     const c = canvas.current
     if (!c) return
     const s = stroke.current
@@ -143,7 +138,7 @@ export function SignaturePad({ label, onChange }: PadProps) {
       // Close the keyboard if the name field still has it open.
       if (document.activeElement instanceof HTMLElement && document.activeElement !== c) document.activeElement.blur()
       const t = e.touches[0]
-      if (t && e.touches.length === 1) s.start(t.clientX, t.clientY, 'touch')
+      if (t && e.touches.length === 1) s.start(t.clientX, t.clientY)
     }
     const touchMove = (e: TouchEvent) => {
       e.preventDefault()
@@ -152,20 +147,18 @@ export function SignaturePad({ label, onChange }: PadProps) {
     }
     const touchEnd = (e: TouchEvent) => {
       e.preventDefault()
-      s.end(e.type)
+      s.end()
     }
     c.addEventListener('touchstart', touchStart, { passive: false })
     c.addEventListener('touchmove', touchMove, { passive: false })
     c.addEventListener('touchend', touchEnd, { passive: false })
     c.addEventListener('touchcancel', touchEnd, { passive: false })
     return () => {
-      padLog(`pad REMOVED "${label}"`)
       c.removeEventListener('touchstart', touchStart)
       c.removeEventListener('touchmove', touchMove)
       c.removeEventListener('touchend', touchEnd)
       c.removeEventListener('touchcancel', touchEnd)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- attach once per mount
   }, [])
 
   // Mouse and pen (and touch on devices without touch events) use pointer events.
@@ -179,7 +172,7 @@ export function SignaturePad({ label, onChange }: PadProps) {
     } catch {
       // Optional: without capture we still draw, and leaving the box ends the stroke.
     }
-    stroke.current.start(e.clientX, e.clientY, e.pointerType || 'pointer')
+    stroke.current.start(e.clientX, e.clientY)
   }
   function pointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
     if (isFingerHandledByTouch(e)) return
@@ -187,11 +180,10 @@ export function SignaturePad({ label, onChange }: PadProps) {
   }
   function pointerEnd(e: React.PointerEvent<HTMLCanvasElement>) {
     if (isFingerHandledByTouch(e)) return
-    stroke.current.end(e.type)
+    stroke.current.end()
   }
 
   function clear() {
-    padLog('pad cleared')
     blank()
     drew.current = false
     setSigned(false)

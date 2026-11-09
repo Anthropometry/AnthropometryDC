@@ -29,10 +29,10 @@ Must-pass checks. A box is ticked only after Ryan tests it on a phone.
 - [x] Unit, language, sync badge, self-check saved
 - [x] Practice records marked and refused as real data while collection is closed
 
-## M3 Consent (F4)
+## M3 Consent (F4): done, tested by Ryan on Android and iPhone, 9 Nov 2026
 
-- [ ] Adult and under-18 paths, three languages, signature, receipt code
-- [ ] Works fully in airplane mode; collectors can't read consents back
+- [x] Adult and under-18 paths, signature, receipt code (French and Twi deferred until translated, decided 7 Nov)
+- [x] Works fully in airplane mode; collectors can't read consents back
 
 ## M4 Measurements (F5)
 

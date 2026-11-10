@@ -24,6 +24,11 @@ export interface PracticeRow {
   /** F4: receipt code given to the participant, and whether consent was recorded (never the consent itself). */
   receiptCode?: string | null
   hasConsent?: boolean
+  /** F5: measurements finished; the intimate tick (yes/no only); sex and age once recorded. */
+  measured?: boolean
+  intimateOk?: boolean
+  sex?: 'female' | 'male' | null
+  ageYears?: number | null
 }
 
 export interface PracticeApi {

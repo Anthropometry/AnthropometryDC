@@ -19,6 +19,8 @@ export interface ConsentFlowProps {
   onSave: (job: ConsentJob) => Promise<void>
   onDone: () => void
   onBack: () => void
+  /** F5: start measuring this participant straight after consent. */
+  onMeasure?: (m: { participantId: string; isPractice: boolean; ageGroup: AgeGroup; intimateOk: boolean }) => void
   Pad?: ComponentType<PadProps>
   newId?: () => string
   newReceipt?: () => string
@@ -34,10 +36,12 @@ interface Agreement {
   guardian: string
   data: boolean
   photos: boolean
+  /** Optional (F5): the more personal measurements. */
+  intimate: boolean
   signature: Uint8Array | null
 }
 
-const EMPTY: Agreement = { name: '', guardian: '', data: false, photos: false, signature: null }
+const EMPTY: Agreement = { name: '', guardian: '', data: false, photos: false, intimate: false, signature: null }
 
 function Tick({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: string }) {
   return (
@@ -57,6 +61,7 @@ export function ConsentFlow(p: ConsentFlowProps) {
   const [receipt] = useState(() => (p.newReceipt ?? newReceiptCode)())
   const [participantId] = useState(() => (p.newId ?? (() => crypto.randomUUID()))())
   const [busy, setBusy] = useState(false)
+  const [savedIntimate, setSavedIntimate] = useState(false)
   const [error, setError] = useState('')
   const now = p.now ?? (() => new Date())
 
@@ -98,6 +103,7 @@ export function ConsentFlow(p: ConsentFlowProps) {
             language: 'en',
             consentVersion: p.text.version,
             childAssent: forChild ? true : null,
+            agreedIntimate: agree.intimate,
             signedAt: at,
           },
       signatures,
@@ -105,6 +111,7 @@ export function ConsentFlow(p: ConsentFlowProps) {
     }
     try {
       await p.onSave(job)
+      setSavedIntimate(!rejected && agree.intimate)
       // Forget the name and signatures on this screen straight away.
       setAgree(EMPTY)
       setChildMark(null)
@@ -157,6 +164,9 @@ export function ConsentFlow(p: ConsentFlowProps) {
           </Tick>
           <Tick checked={agree.photos} onChange={(v) => setAgree((a) => ({ ...a, photos: v }))}>
             {p.text.tickPhotos(forChild)}
+          </Tick>
+          <Tick checked={agree.intimate} onChange={(v) => setAgree((a) => ({ ...a, intimate: v }))}>
+            {p.text.tickIntimate(forChild)}
           </Tick>
           <Field
             label={forChild ? "Child's name" : "Participant's name"}
@@ -222,10 +232,18 @@ export function ConsentFlow(p: ConsentFlowProps) {
             Write this code on a slip for the participant. They give it to the project lead to see or withdraw their
             data at any time.
           </p>
-          <p className="rounded-xl border border-dashed border-slate-300 p-4 text-slate-600">
-            Next: measurements. They come in the next update (F5). This participant waits in your list.
-          </p>
-          <Button onClick={p.onDone}>Done</Button>
+          {p.onMeasure ? (
+            <Button
+              onClick={() =>
+                p.onMeasure!({ participantId, isPractice: p.isPractice, ageGroup: age!, intimateOk: savedIntimate })
+              }
+            >
+              Start measurements
+            </Button>
+          ) : null}
+          <Button variant={p.onMeasure ? 'secondary' : 'primary'} onClick={p.onDone}>
+            {p.onMeasure ? 'Measure later' : 'Done'}
+          </Button>
         </>
       )}
 

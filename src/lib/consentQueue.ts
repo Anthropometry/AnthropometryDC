@@ -8,6 +8,7 @@
 import Dexie, { type Table } from 'dexie'
 import type { Language } from './profile'
 import type { AgeGroup } from './practice'
+import type { MeasureDraft, MeasureOp } from './measureQueue'
 
 export type SignatureSlot = 'participant' | 'guardian' | 'assent'
 export const SIGNATURE_SLOTS: readonly SignatureSlot[] = ['participant', 'guardian', 'assent']
@@ -18,6 +19,8 @@ export interface ConsentRecord {
   language: Language
   consentVersion: string
   childAssent: boolean | null
+  /** F5 amendment: the optional third tick (intimate measurements). Older waiting jobs lack it (= false). */
+  agreedIntimate?: boolean
   signedAt: string
 }
 
@@ -38,9 +41,18 @@ export interface ConsentJob {
 
 export class FieldDb extends Dexie {
   jobs!: Table<ConsentJob, string>
+  /** F5: what has been measured for each participant on this phone (the screens read this). */
+  drafts!: Table<MeasureDraft, string>
+  /** F5: changes waiting to be sent, in order. */
+  ops!: Table<MeasureOp, number>
   constructor(name = 'anthro-collect') {
     super(name)
     this.version(1).stores({ jobs: 'participantId, collectorId, createdAt' })
+    this.version(2).stores({
+      jobs: 'participantId, collectorId, createdAt',
+      drafts: 'participantId, collectorId',
+      ops: '++seq, collectorId, participantId',
+    })
   }
 }
 

@@ -5,5 +5,8 @@
   --color-brand-dark: #115e59;
 }
 
+/* Light only, explicitly: phones' automatic dark modes (Chrome, Samsung Internet) otherwise darken the
+   page themselves and leave dark text on a dark background. */
+:root { color-scheme: only light; }
 html, body, #root { height: 100%; }
-body { -webkit-tap-highlight-color: transparent; }
+body { -webkit-tap-highlight-color: transparent; background: #ffffff; color: #0f172a; }

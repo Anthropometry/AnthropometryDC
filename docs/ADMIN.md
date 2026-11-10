@@ -31,7 +31,8 @@ them on the live database and never sees the secrets.
    Variables managed by `wrangler.jsonc`.
 3. **Turnstile widget.** Cloudflare dashboard → Turnstile → **Add widget**:
    - name: Anthro Collect; mode: **Managed**;
-   - hostnames: `anthro-collect.patience-sombang.workers.dev` (previews are its subdomains) and `localhost`.
+   - hostnames: `patience-sombang.workers.dev` (covers the live app **and** every pull-request preview,
+     e.g. `pr-11-anthro-collect…`, which are not subdomains of the app's own name) and `localhost`.
 
    Then put the **site key** in GitHub → Settings → Secrets and variables → Actions →
    **Variables** → `VITE_TURNSTILE_SITE_KEY`. Keep the **secret key** for step 7.

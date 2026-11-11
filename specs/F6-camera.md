@@ -61,6 +61,11 @@ used (DISCUSSION.md).
      by itself (no shaking from pressing a button). Moving or tilting cancels the countdown;
    - the live view on screen shows the face (that can't be avoided while framing). **Nothing from
      the live view is saved** until it is blurred.
+   - **Zoom (added while building, 11 Nov):** every photo is a 3:4 portrait frame; the collector
+     uses digital zoom (1–4×), not their feet, until the head touches the top line and the heels
+     the bottom line. The screen shows exactly the photo's area. Zoom is stored with each photo.
+     Reason: from 2.5–3 m a phone lens shows an adult at about 45% of the frame, which would leave
+     the head below the always-blurred face zone.
 4. **Review:** the **blurred** photo only (the collector never sees an unblurred saved image):
    - **Use photo** / **Retake**;
    - "Is the whole body visible, head to heel?" and "Is the A4 sheet fully visible and flat?";
@@ -97,7 +102,7 @@ the outline of the top of the head visible without showing who it is.
 | Where | Fields | When |
 | --- | --- | --- |
 | R2 `photos` (private) | `<participant id>/front.jpg`, `side.jpg`, `back.jpg` (practice under `practice/…`) | Upload through the Worker |
-| Supabase `photos` (new) | `participant_id`, `slot` (front/side/back), `width`, `height`, `bytes`, `taken_at`, `faces_detected` (count), `level_pitch`, `level_roll` (degrees at the shutter), `phone_model`; **no image, no name** | After the upload is confirmed |
+| Supabase `photos` (new) | `participant_id`, `slot` (front/side/back), `width`, `height`, `bytes`, `taken_at`, `faces_detected` (count), `level_pitch`, `level_roll` (degrees at the shutter), `phone_model`, `a4_confirmed`, `zoom`; **no image, no name** | After the upload is confirmed |
 | Supabase `participants` | `photos_done_at` (new) | When front and side are in (back optional) |
 | Phone (IndexedDB) | blurred JPEGs waiting to upload | Until the server confirms |
 

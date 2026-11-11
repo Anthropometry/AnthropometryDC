@@ -22,6 +22,23 @@ export type Pose = 'front' | 'side' | 'back'
  */
 export const GUIDE_HEAD = { cx: 0.5, cy: 0.09, size: 0.11 }
 
+/** Every photo is 3:4 portrait, whatever the camera gives (the guide is drawn on this frame). */
+export const FRAME_ASPECT = 3 / 4
+export const ZOOM = { min: 1, max: 4, step: 0.1 }
+
+/**
+ * The part of the camera image that becomes the photo: the centred 3:4 area, then the centre
+ * 1/zoom of it (digital zoom, so the person fills the guide from 2.5–3 m without walking closer;
+ * the perspective stays that of the real distance). The screen shows exactly this area.
+ */
+export function frameRect(sourceWidth: number, sourceHeight: number, zoom = 1): Box {
+  const z = Math.min(ZOOM.max, Math.max(ZOOM.min, zoom))
+  const base = sourceWidth / sourceHeight > FRAME_ASPECT ? { w: sourceHeight * FRAME_ASPECT, h: sourceHeight } : { w: sourceWidth, h: sourceWidth / FRAME_ASPECT }
+  const w = base.w / z
+  const h = base.h / z
+  return { x: (sourceWidth - w) / 2, y: (sourceHeight - h) / 2, w, h }
+}
+
 export function clampBox(b: Box, width: number, height: number): Box {
   const x = Math.max(0, Math.floor(b.x))
   const y = Math.max(0, Math.floor(b.y))

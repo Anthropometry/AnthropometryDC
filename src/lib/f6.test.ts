@@ -2,7 +2,7 @@
 /** F6 logic: level lock, steady timer, blur geometry and mosaic, capture order, stated height. */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LIMITS, createSteadyTimer, isLevel, levelHint, tiltFromGravity, tiltFromOrientation } from './level'
-import { boxesToBlur, detectArea, enlarge, faceZone, mosaic, toFrame, type Pixels } from './blur'
+import { boxesToBlur, detectArea, enlarge, faceZone, frameRect, mosaic, toFrame, type Pixels } from './blur'
 import { capture, isBlurred } from './capture'
 import { ftinTyped, toldHeightTenths } from './measurements'
 
@@ -12,6 +12,20 @@ describe('level lock (pitch 90° ± 1.5°, roll ± 1°)', () => {
   it('from gravity: upright is level on Android and iPhone (opposite signs)', () => {
     expect(isLevel(tiltFromGravity({ x: 0, y: 9.81, z: 0 }))).toBe(true)
     expect(isLevel(tiltFromGravity({ x: 0, y: -9.81, z: 0 }))).toBe(true)
+  })
+
+  it('from gravity: Android and iPhone (all signs opposite) give the same tilt, with the orientation signs', () => {
+    const a = (d: number) => 9.81 * Math.sin((d * Math.PI) / 180)
+    const b = (d: number) => 9.81 * Math.cos((d * Math.PI) / 180)
+    // screen tipped up (top leaning away) by 5°: Android z > 0; iPhone the same with every sign flipped
+    const android = tiltFromGravity({ x: 0, y: b(5), z: a(5) })!
+    const iphone = tiltFromGravity({ x: 0, y: -b(5), z: -a(5) })!
+    expect(android.pitch).toBeCloseTo(-5, 5)
+    expect(iphone.pitch).toBeCloseTo(-5, 5)
+    expect(tiltFromOrientation(85, 0)!.pitch).toBe(-5) // same sign as beta 85°
+    // right edge lower by 3°: Android x < 0
+    expect(tiltFromGravity({ x: -a(3), y: b(3), z: 0 })!.roll).toBeCloseTo(3, 5)
+    expect(tiltFromGravity({ x: a(3), y: -b(3), z: 0 })!.roll).toBeCloseTo(3, 5)
   })
 
   it('from gravity: 2° forward or 1.5° sideways is not level; flat is unknown', () => {
@@ -29,8 +43,8 @@ describe('level lock (pitch 90° ± 1.5°, roll ± 1°)', () => {
     expect(tiltFromOrientation(null, 0)).toBeNull()
     expect(LIMITS).toEqual({ pitch: 1.5, roll: 1 })
     expect(levelHint(null)).toMatch(/upright/)
-    expect(levelHint({ pitch: 3, roll: 0 })).toMatch(/back/)
-    expect(levelHint({ pitch: -3, roll: 0 })).toMatch(/forward/)
+    expect(levelHint({ pitch: 3, roll: 0 })).toMatch(/away from you/)
+    expect(levelHint({ pitch: -3, roll: 0 })).toMatch(/towards you/)
     expect(levelHint({ pitch: 0, roll: 2 })).toMatch(/sideways/)
     expect(levelHint({ pitch: 0, roll: 0 })).toMatch(/Hold still/)
   })
@@ -51,6 +65,33 @@ describe('auto-shutter: level and steady for 3 seconds', () => {
     expect(t.feed(true, 5700)).toBe(3)
     t.reset()
     expect(t.feed(true, 6000)).toBe(3)
+  })
+})
+
+describe('photo frame: 3:4, digital zoom', () => {
+  it('a 9:16 camera image gives its centred 3:4 area; zoom takes the centre of that', () => {
+    expect(frameRect(1080, 1920)).toEqual({ x: 0, y: 240, w: 1080, h: 1440 })
+    expect(frameRect(1080, 1920, 2)).toEqual({ x: 270, y: 600, w: 540, h: 720 })
+    expect(frameRect(1500, 1600)).toEqual({ x: 150, y: 0, w: 1200, h: 1600 }) // wider than 3:4
+    expect(frameRect(1080, 1920, 9).w).toBe(270) // at most 4x
+    expect(frameRect(1080, 1920, 0.2).w).toBe(1080) // at least 1x
+  })
+
+  it('capture draws only that area, at its own size (no upscaling)', async () => {
+    const draws: unknown[][] = []
+    const ctx = {
+      drawImage: vi.fn((...a: unknown[]) => void draws.push(a)),
+      getImageData: vi.fn((_x: number, _y: number, w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h })),
+      putImageData: vi.fn(),
+      clearRect: vi.fn(),
+    }
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx as unknown as CanvasRenderingContext2D)
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (cb: BlobCallback) {
+      cb(new Blob([new Uint8Array([0xff, 0xd8, 0xff])]))
+    })
+    const p = await capture({} as CanvasImageSource, 1080, 1920, null, 2)
+    expect(draws[0].slice(1)).toEqual([270, 600, 540, 720, 0, 0, 540, 720])
+    expect(p).toMatchObject({ width: 540, height: 720 })
   })
 })
 

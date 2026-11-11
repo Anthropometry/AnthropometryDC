@@ -1,6 +1,7 @@
 /**
  * F6: the only place a photo is made (specs/F6-camera.md, POLICY §10).
- * 1. The camera frame is drawn onto an off-screen canvas.
+ * 1. The camera frame (its centred 3:4 area, digitally zoomed as on screen) is drawn onto an
+ *    off-screen canvas.
  * 2. The detector looks for faces around the guide's head; every face found, plus the fixed face
  *    zone (always), is turned into a coarse mosaic.
  * 3. Only then is a JPEG made, fresh from the canvas (so no EXIF: no place, time or camera data).
@@ -8,7 +9,7 @@
  * The result is registered as blurred; the photo queue accepts nothing else, so an unblurred frame
  * can never reach storage. There is no switch to turn the blur off.
  */
-import { boxesToBlur, detectArea, mosaic, toFrame, type Box } from './blur'
+import { boxesToBlur, detectArea, frameRect, mosaic, toFrame, type Box } from './blur'
 
 export interface BlurredPhoto {
   readonly jpeg: Uint8Array
@@ -50,17 +51,19 @@ export async function capture(
   sourceWidth: number,
   sourceHeight: number,
   detect: Detector | null,
+  zoom = 1,
 ): Promise<BlurredPhoto> {
-  const scale = Math.min(1, MAX_SIDE / Math.max(sourceWidth, sourceHeight))
-  const width = Math.round(sourceWidth * scale)
-  const height = Math.round(sourceHeight * scale)
+  const f = frameRect(sourceWidth, sourceHeight, zoom)
+  const scale = Math.min(1, MAX_SIDE / Math.max(f.w, f.h))
+  const width = Math.round(f.w * scale)
+  const height = Math.round(f.h * scale)
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) throw new Error('no_canvas')
   try {
-    ctx.drawImage(source, 0, 0, width, height)
+    ctx.drawImage(source, f.x, f.y, f.w, f.h, 0, 0, width, height)
 
     // Faces around the guide's head, made large enough for the detector.
     let found: Box[] = []

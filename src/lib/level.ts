@@ -2,6 +2,8 @@
  * F6 level lock and auto-shutter (specs/F6-camera.md). Pure functions, tested without a phone.
  * Upright and square = the phone held in portrait, screen facing the collector, camera facing the
  * participant. Pitch is the forward/back tilt, roll the sideways tilt, both in degrees from upright.
+ * Signs follow the orientation angles: pitch > 0 = the top of the phone leans towards the collector
+ * (beta above 90°); roll > 0 = the right edge lower (gamma above 0).
  */
 
 export interface Tilt {
@@ -16,14 +18,17 @@ export const STEADY_MS = 3000
 const deg = (r: number) => (r * 180) / Math.PI
 
 /**
- * From the accelerometer's gravity (works on phones without a gyroscope too, as in F2).
- * Upright portrait: gravity lies along the phone's y axis. The sign of y differs between
- * Android and iPhone, so only its size is used.
+ * From the accelerometer's gravity (works on phones without a gyroscope too, as in F2). This is the
+ * main source: near upright the orientation angle gamma is unstable, gravity is not.
+ * Upright portrait: gravity lies along the phone's y axis. iPhone reports every axis with the
+ * opposite sign to Android, so all three are first turned to Android's signs using y.
+ * Android: screen facing up → z > 0 (top leaning away, pitch < 0); left edge lower → x > 0 (roll < 0).
  */
 export function tiltFromGravity(g: { x: number; y: number; z: number }): Tilt | null {
-  const ay = Math.abs(g.y)
-  if (![g.x, g.y, g.z].every(Number.isFinite) || ay < 1) return null
-  return { pitch: deg(Math.atan2(g.z, ay)), roll: deg(Math.atan2(g.x, ay)) }
+  if (![g.x, g.y, g.z].every(Number.isFinite) || Math.abs(g.y) < 1) return null
+  const s = Math.sign(g.y)
+  const y = g.y * s
+  return { pitch: -deg(Math.atan2(g.z * s, y)) || 0, roll: -deg(Math.atan2(g.x * s, y)) || 0 }
 }
 
 /** From orientation angles: beta 90 = upright, gamma 0 = no sideways tilt. */
@@ -39,7 +44,8 @@ export function isLevel(t: Tilt | null, limits: Tilt = LIMITS): boolean {
 /** Plain words for the collector. */
 export function levelHint(t: Tilt | null, limits: Tilt = LIMITS): string {
   if (!t) return 'Hold the phone upright.'
-  if (Math.abs(t.pitch) > limits.pitch) return t.pitch > 0 ? 'Tilt the top of the phone back a little.' : 'Tilt the top of the phone forward a little.'
+  if (Math.abs(t.pitch) > limits.pitch)
+    return t.pitch > 0 ? 'Tilt the top of the phone away from you a little.' : 'Tilt the top of the phone towards you a little.'
   if (Math.abs(t.roll) > limits.roll) return 'Straighten the phone sideways.'
   return 'Level. Hold still.'
 }

@@ -78,6 +78,7 @@ export async function listMine(client: SupabaseClient, practice: boolean): Promi
     measured: r.measured === true,
     intimateOk: r.intimate_ok === true,
     weightOk: r.weight_ok === true,
+    photosDone: r.photos_done === true,
     sex: (r.sex as 'female' | 'male' | null) ?? null,
     ageYears: (r.age_years as number | null) ?? null,
   }))

@@ -104,6 +104,7 @@ create table public.photos (
   level_roll     numeric(4, 1) check (level_roll is null or level_roll between -90 and 90),
   phone_model    text check (phone_model is null or length(phone_model) <= 80),
   a4_confirmed   boolean not null,
+  zoom           numeric(2, 1) not null default 1 check (zoom between 1 and 4),
   updated_at     timestamptz not null default now(),
   unique (participant_id, slot)
 );
@@ -147,7 +148,7 @@ create trigger photos_check
 
 revoke all on public.photos from anon, authenticated;
 grant select, insert on public.photos to authenticated;
-grant update (width, height, bytes, taken_at, faces_detected, level_pitch, level_roll, phone_model, a4_confirmed)
+grant update (width, height, bytes, taken_at, faces_detected, level_pitch, level_roll, phone_model, a4_confirmed, zoom)
   on public.photos to authenticated;
 alter table public.photos enable row level security;
 

@@ -273,6 +273,7 @@ describe('Practice list (F5)', () => {
     expect(onMeasure).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }))
     within(screen.getByRole('listitem', { name: 'Practice P-0002' })).getByRole('button', { name: 'View' })
     expect(within(screen.getByRole('listitem', { name: 'Practice P-0003' })).queryByRole('button', { name: 'Measure' })).toBeNull()
-    expect(stateOf(row({ hasConsent: true, measured: true }))).toBe('Measured')
+    expect(stateOf(row({ hasConsent: true, measured: true }))).toBe('Measured · photos needed')
+    expect(stateOf(row({ hasConsent: true, measured: true, photosDone: true }))).toBe('Complete')
   })
 })

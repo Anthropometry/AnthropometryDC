@@ -30,6 +30,8 @@ export interface PracticeRow {
   /** F5 Amendment A: weight agreed at consent (yes/no only). */
   weightOk?: boolean
   sex?: 'female' | 'male' | null
+  /** F6: front and side photos in (on the server, or done on this phone and waiting). */
+  photosDone?: boolean
   ageYears?: number | null
 }
 

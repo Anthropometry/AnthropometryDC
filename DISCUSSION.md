@@ -4,6 +4,7 @@ Each entry: date, topic, decision, why, files changed.
 
 | Date | Topic | Decision | Why | Changed |
 | --- | --- | --- | --- | --- |
+| 11 Nov 2026 | Database | Ryan approved `supabase db push`; `20261111000000_f5a_weight.sql` applied to `vafxojfaylrlgupvahdo`. Local and remote history match (8 migrations). No table data read | Policy §7 | supabase/migrations |
 | 11 Nov 2026 | F5 Amendment A | Ryan approved **optional weight**: own consent tick; asked right after height; kg to 0.1; source recorded (scale or told); skip allowed, Finish doesn't wait for it; unusual-value ranges by age; **project coordinator provides digital scales**; daily known-weight check is training, not an app step. Replaces decision 10's "no weight". **M4 done** (Ryan's phone test, 10 Nov) | An extra data point; source kept because told weights are often a few kg off | specs/F5-measurements.md, docs/ROADMAP.md |
 | 10 Nov 2026 | Database | Ryan approved `supabase db push`; `20261110000000_f5_measurements.sql` applied to `vafxojfaylrlgupvahdo`. Local and remote history match (7 migrations). No table data read | Policy §7 | supabase/migrations |
 | 9 Nov 2026 | F5 built | Ryan approved `specs/F5-measurements.md`; F5 built in branch `f5-measurements` (migration `20261110000000_f5_measurements.sql`, not applied). One spec refinement while building: the waist-vs-bust/chest consistency warning is left out (heavier people often have a larger waist; false warnings teach collectors to ignore warnings) | Keep warnings trustworthy | specs/F5-measurements.md |

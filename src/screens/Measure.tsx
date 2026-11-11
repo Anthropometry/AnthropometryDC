@@ -14,12 +14,13 @@ import {
   setFor,
   showCm,
   unusual,
+  unusualWeight,
   valueTenths,
   type Code,
   type Sex,
   type Unit,
 } from '../lib/measurements'
-import type { About, Clothing, Entry, HeightMethod, MeasureDraft, SkipReason } from '../lib/measureQueue'
+import type { About, Clothing, Entry, HeightMethod, MeasureDraft, SkipReason, Weight } from '../lib/measureQueue'
 import { BodyFigure } from '../components/BodyFigure'
 import { ReadingPad } from '../components/ReadingPad'
 import { Button, Choice, ErrorText, Field, ModeBanner, Page, Title } from '../components/ui'
@@ -28,6 +29,8 @@ export interface MeasureStore {
   about: (d: MeasureDraft, a: About) => Promise<MeasureDraft>
   entry: (d: MeasureDraft, e: Entry) => Promise<MeasureDraft>
   finish: (d: MeasureDraft) => Promise<MeasureDraft>
+  /** F5 Amendment A: weight (kg null = skipped). */
+  weight: (d: MeasureDraft, w: Weight) => Promise<MeasureDraft>
 }
 
 export interface MeasureFlowProps {
@@ -52,7 +55,7 @@ const REASON_TEXT: Record<SkipReason, string> = {
   declined_at_consent: 'declined at consent',
 }
 
-type Step = 'about' | 'intro' | 'measure' | 'summary'
+type Step = 'about' | 'intro' | 'measure' | 'weight' | 'summary'
 type Prompt = { kind: 'unusual' | 'disagree'; text: string } | null
 
 /** Value in tenths of a stored entry (null if skipped or incomplete). */
@@ -209,7 +212,8 @@ export function MeasureFlow({ draft: initial, unit, store, onDone, onBack, now =
     try {
       const d = await store.entry(draft, e)
       setDraft(d)
-      if (index + 1 < screens.length) open(index + 1)
+      if (e.code === 'height' && d.weightOk) openWeight()
+      else if (index + 1 < screens.length) open(index + 1)
       else setStep('summary')
     } catch {
       setError('Could not save on this phone. Try again.')
@@ -295,6 +299,51 @@ export function MeasureFlow({ draft: initial, unit, store, onDone, onBack, now =
     setPad('')
   }
 
+  // ---------------------------------------------------------------- weight (F5 Amendment A)
+  const [wPad, setWPadState] = useState('')
+  const wPadNow = useRef('')
+  const setWPad = (v: string) => {
+    wPadNow.current = v
+    setWPadState(v)
+  }
+  const [wSource, setWSource] = useState<'scale' | 'told' | null>(null)
+  const [wPrompt, setWPrompt] = useState<string | null>(null)
+  const afterHeight = () => {
+    const i = screens.indexOf('height') + 1
+    if (i < screens.length) open(i)
+    else setStep('summary')
+  }
+  function openWeight() {
+    setWPad('')
+    setWSource(draft.weight?.source ?? null)
+    setWPrompt(null)
+    setError('')
+    setStep('weight')
+  }
+  async function saveWeight(w: Weight) {
+    try {
+      setDraft(await store.weight(draft, w))
+      setWPrompt(null)
+      afterHeight()
+    } catch {
+      setError('Could not save on this phone. Try again.')
+    }
+  }
+  function weightNext(confirmed = false) {
+    const t = readingTenths(wPadNow.current, 'cm')
+    if (t === null) return setError('Type the weight like 72.4 (one decimal at most).')
+    if (!wSource) return setError('Say how the weight was obtained.')
+    setError('')
+    const range = unusualWeight(t, draft.about!.ageYears)
+    if (range && !confirmed) {
+      setWPrompt(`${(t / 10).toFixed(1)} kg is unusual (expected ${range[0]}–${range[1]} kg${draft.about!.ageYears < 18 ? ' at this age' : ' for adults'}). Check the scale or ask again.`)
+      return
+    }
+    void saveWeight({ kg: t / 10, source: wSource, confirmedUnusual: confirmed })
+  }
+  const weightText = (w: Weight | undefined) =>
+    !w ? 'not yet' : w.kg === null ? 'skipped' : `${w.kg.toFixed(1)} kg, ${w.source === 'scale' ? 'scale' : 'told'}${w.confirmedUnusual ? ' ✓ checked' : ''}`
+
   const firstIntimate = screens.find((c) => INTIMATE.has(c))
   const done = codes.every((c) => draft.entries[c])
 
@@ -321,6 +370,9 @@ export function MeasureFlow({ draft: initial, unit, store, onDone, onBack, now =
             <li>Participant stands straight, relaxed, arms down, looking ahead.</li>
             <li>Tape snug on the body, not tight; read it at eye level.</li>
             <li>Height: steel tape from the floor against the wall; a straight edge flat on the head.</li>
+            {draft.weightOk && (
+              <li>Weight (after height): scale on a hard, flat floor; shoes and pocket items off; read when the number settles.</li>
+            )}
             <li>Explain each step before touching. Wipe the tape between participants.</li>
           </ul>
           <p className="text-sm text-slate-600">
@@ -446,6 +498,62 @@ export function MeasureFlow({ draft: initial, unit, store, onDone, onBack, now =
         </>
       )}
 
+      {step === 'weight' && draft.about && (
+        <>
+          <p className="text-sm font-semibold text-slate-600">After height · optional</p>
+          <Title>Weight (optional)</Title>
+          <p>Scale on a hard, flat floor; shoes and heavy pocket items off; stand still; read when the number settles. Or ask the participant.</p>
+          {draft.weight && !wPad && !wPrompt && <p className="text-sm text-slate-600">Saved: {weightText(draft.weight)}.</p>}
+          {wPrompt ? (
+            <div role="alertdialog" aria-label="Check the weight" className="flex flex-col gap-3 rounded-xl border-2 border-amber-400 bg-amber-50 p-4">
+              <p>{wPrompt}</p>
+              <Button
+                onClick={() => {
+                  setWPrompt(null)
+                  setWPad('')
+                }}
+              >
+                Type again
+              </Button>
+              <Button variant="secondary" onClick={() => weightNext(true)}>
+                Keep {(Number(readingTenths(wPad, 'cm') ?? 0) / 10).toFixed(1)} kg
+              </Button>
+            </div>
+          ) : (
+            <>
+              <fieldset className="flex flex-col gap-2">
+                <legend className="mb-1 text-sm font-semibold">How</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  <Choice chosen={wSource === 'scale'} onClick={() => setWSource('scale')}>
+                    Weighed on a scale
+                  </Choice>
+                  <Choice chosen={wSource === 'told'} onClick={() => setWSource('told')}>
+                    Participant told me
+                  </Choice>
+                </div>
+              </fieldset>
+              <ReadingPad unit="cm" kg value={wPad} onChange={setWPad} />
+              <Button disabled={!wPad || !wSource} onClick={() => weightNext()}>
+                Next
+              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="secondary" onClick={() => open(screens.indexOf('height'))}>
+                  Back
+                </Button>
+                <Button variant="secondary" onClick={() => void saveWeight({ kg: null, source: null, confirmedUnusual: false })}>
+                  Skip weight
+                </Button>
+              </div>
+              {draft.weight && !wPad && (
+                <Button variant="secondary" onClick={afterHeight}>
+                  Keep saved value
+                </Button>
+              )}
+            </>
+          )}
+        </>
+      )}
+
       {step === 'summary' && draft.about && (
         <>
           <Title>Summary</Title>
@@ -474,6 +582,16 @@ export function MeasureFlow({ draft: initial, unit, store, onDone, onBack, now =
               )
             })}
           </ul>
+          {draft.weightOk && (
+            <button
+              type="button"
+              onClick={openWeight}
+              className="flex w-full justify-between rounded-lg border border-dashed border-slate-300 bg-white p-3 text-left"
+            >
+              <span>Weight (optional)</span>
+              <span className="font-semibold">{weightText(draft.weight)}</span>
+            </button>
+          )}
           {draft.finishedAt ? (
             <p role="status" className="rounded-lg bg-emerald-50 p-3">
               Finished. Changes are still saved and sent.

@@ -4,7 +4,7 @@
  * recomputes every centimetre value; the app never sends one.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { About, Entry, MeasureApi } from '../lib/measureQueue'
+import type { About, Entry, MeasureApi, Weight } from '../lib/measureQueue'
 import type { Code } from '../lib/measurements'
 
 const isDuplicate = (e: { code?: string; message?: string } | null) =>
@@ -48,6 +48,15 @@ export function measureApi(client: SupabaseClient): MeasureApi {
         .select('id')
       if (again.error) throw again.error
       if (!again.data || again.data.length !== 1) throw new Error('not_saved')
+    },
+    async saveWeight(participantId: string, w: Weight) {
+      const { data, error } = await client
+        .from('participants')
+        .update({ weight_kg: w.kg, weight_source: w.kg === null ? null : w.source })
+        .eq('id', participantId)
+        .select('id')
+      if (error) throw error
+      if (!data || data.length !== 1) throw new Error('not_saved')
     },
     async finish(participantId: string) {
       const { data, error } = await client

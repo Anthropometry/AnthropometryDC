@@ -289,7 +289,7 @@ ranges, then widened so very small, very tall and very large adults don't get fa
 9. Child 7 → can't be measured; child 10 → 9 measurements; male 15 → 18.
 10. Airplane mode → measure → "waiting to upload" → back online → "All saved".
 
-## Amendment A (11 Nov 2026): optional weight (draft, for Ryan's approval)
+## Amendment A (11 Nov 2026): optional weight, approved by Ryan, 11 Nov 2026
 
 Ryan asked to collect body weight as an extra, optional data point. Where this amendment and the
 text above disagree (decision 10: "no weight"), the amendment wins.

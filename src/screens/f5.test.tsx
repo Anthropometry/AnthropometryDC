@@ -35,6 +35,7 @@ function fakeStore() {
       return { ...d, entries: { ...d.entries, [e.code]: e } }
     }),
     finish: vi.fn(async (d) => ({ ...d, finishedAt: 'now' })),
+    weight: vi.fn(async (d, w) => ({ ...d, weight: w })),
   }
   return { store, entries }
 }
@@ -246,7 +247,7 @@ describe('F4 amendment: optional third consent tick', () => {
     await waitFor(() => screen.getByText('R7K-2MPQ'))
     expect(onSave.mock.calls[0][0].consent?.agreedIntimate).toBe(true)
     fireEvent.click(btn('Start measurements'))
-    expect(onMeasure).toHaveBeenCalledWith({ participantId: 'p1', isPractice: true, ageGroup: 'adult', intimateOk: true })
+    expect(onMeasure).toHaveBeenCalledWith({ participantId: 'p1', isPractice: true, ageGroup: 'adult', intimateOk: true, weightOk: false })
   })
 })
 

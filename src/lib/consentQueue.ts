@@ -21,6 +21,8 @@ export interface ConsentRecord {
   childAssent: boolean | null
   /** F5 amendment: the optional third tick (intimate measurements). Older waiting jobs lack it (= false). */
   agreedIntimate?: boolean
+  /** F5 Amendment A: the optional weight tick (missing on older waiting jobs = false). */
+  agreedWeight?: boolean
   signedAt: string
 }
 

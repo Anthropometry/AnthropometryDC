@@ -13,6 +13,8 @@ export interface ReadingPadProps {
   onChange: (typed: string) => void
   /** Added to the cm value for display only (the 100 cm wall mark). */
   addCm?: number
+  /** Weight (F5 Amendment A): same 0.1 pad, shown in kg, no conversion line. */
+  kg?: boolean
 }
 
 /** "34 3/8" → [ "34", 3 ]; "34" → ["34", 0] */
@@ -24,7 +26,7 @@ function splitInches(v: string): [string, number] {
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'] as const
 
-export function ReadingPad({ unit, value, onChange: report, addCm = 0 }: ReadingPadProps) {
+export function ReadingPad({ unit, value, onChange: report, addCm = 0, kg = false }: ReadingPadProps) {
   const [whole, eighths] = unit === 'in' ? splitInches(value) : [value, 0]
   const tenths = value ? readingTenths(value, unit) : null
 
@@ -61,14 +63,22 @@ export function ReadingPad({ unit, value, onChange: report, addCm = 0 }: Reading
   const shown =
     unit === 'in'
       ? `${whole || '0'}${eighths ? ' ' + EIGHTHS[eighths].glyph : ''} in`
-      : `${value || '0'} cm`
+      : `${value || '0'} ${kg ? 'kg' : 'cm'}`
 
   return (
     <div className="flex flex-col gap-3">
       <div className="rounded-xl border-2 border-slate-300 bg-white p-3 text-center" role="status" aria-label="Reading">
         <p className="font-mono text-4xl font-bold">{shown}</p>
         <p className="text-sm text-slate-600">
-          {tenths !== null ? (unit === 'in' || addCm ? `= ${showCm(tenths + addCm * 10)}` : ' ') : 'Type the reading from the tape'}
+          {kg
+            ? tenths !== null
+              ? ' '
+              : 'Type the weight in kg'
+            : tenths !== null
+              ? unit === 'in' || addCm
+                ? `= ${showCm(tenths + addCm * 10)}`
+                : ' '
+              : 'Type the reading from the tape'}
         </p>
       </div>
       {unit === 'in' && (

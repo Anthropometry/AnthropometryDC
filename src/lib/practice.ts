@@ -27,6 +27,8 @@ export interface PracticeRow {
   /** F5: measurements finished; the intimate tick (yes/no only); sex and age once recorded. */
   measured?: boolean
   intimateOk?: boolean
+  /** F5 Amendment A: weight agreed at consent (yes/no only). */
+  weightOk?: boolean
   sex?: 'female' | 'male' | null
   ageYears?: number | null
 }

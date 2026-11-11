@@ -11,6 +11,8 @@ export interface ConsentText {
   tickPhotos: (forChild: boolean) => string
   /** F5: optional third tick for the more personal measurements. */
   tickIntimate: (forChild: boolean) => string
+  /** F5 Amendment A: optional tick for weight. */
+  tickWeight: (forChild: boolean) => string
   /** Read to the child, in simple words. */
   assent: string[]
 }
@@ -42,6 +44,10 @@ const PRACTICE: ConsentText = {
     forChild
       ? "Optional: I agree to the more personal measurements of my child (inseam; for girls 13 and over also bust, under-bust and bust point). I can say no to these and my child still takes part."
       : 'Optional: I agree to the more personal measurements (inseam; for women also bust, under-bust and bust point). I can say no to these and still take part.',
+  tickWeight: (forChild) =>
+    forChild
+      ? "Optional: I agree to my child's weight being recorded (on a scale, or as I tell you)."
+      : 'Optional: I agree to my weight being recorded (on a scale, or as I tell you).',
   assent: [
     'We are students from Ashesi University.',
     'We would like to measure you with a tape and take some photos of your body. Your face will be hidden.',

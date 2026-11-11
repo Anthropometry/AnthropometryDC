@@ -55,6 +55,7 @@ import {
   loadDraft,
   saveAbout as saveAboutLocal,
   saveEntry as saveEntryLocal,
+  saveWeightLocal,
   startDraft,
   waitingOps,
   type MeasureDraft,
@@ -193,6 +194,7 @@ const jobRow = (j: ConsentJob): PracticeRow => ({
   receiptCode: j.rejected ? null : j.receiptCode,
   hasConsent: false,
   intimateOk: j.consent?.agreedIntimate === true,
+  weightOk: j.consent?.agreedWeight === true,
 })
 
 const practiceApi: PracticeApi = {
@@ -400,12 +402,18 @@ export default function App() {
         sendAll(d.collectorId)
         return next
       },
+      weight: async (d, w) => {
+        const next = await saveWeightLocal(fieldDb!, d, w)
+        bump()
+        sendAll(d.collectorId)
+        return next
+      },
     }),
     [bump, sendAll],
   )
   const openMeasure = useCallback(
     async (
-      m: { participantId: string; isPractice: boolean; ageGroup: 'adult' | 'child'; intimateOk: boolean },
+      m: { participantId: string; isPractice: boolean; ageGroup: 'adult' | 'child'; intimateOk: boolean; weightOk: boolean },
       fresh = false,
     ) => {
       if (!fieldDb || !profile) return
@@ -551,6 +559,7 @@ export default function App() {
               isPractice: true,
               ageGroup: r.ageGroup,
               intimateOk: r.intimateOk === true,
+              weightOk: r.weightOk === true,
             })
           }
         />

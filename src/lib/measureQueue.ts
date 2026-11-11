@@ -33,12 +33,23 @@ export interface Entry {
   measuredAt: string
 }
 
+/** F5 Amendment A: optional weight. `null` kg = asked and skipped. */
+export interface Weight {
+  kg: number | null
+  source: 'scale' | 'told' | null
+  confirmedUnusual: boolean
+}
+
 export interface MeasureDraft {
   participantId: string
   collectorId: string
   isPractice: boolean
   ageGroup: AgeGroup
   intimateOk: boolean
+  /** Weight agreed at consent (older drafts lack it = false). */
+  weightOk?: boolean
+  /** Undefined = not asked yet. */
+  weight?: Weight
   about: About | null
   entries: Partial<Record<Code, Entry>>
   finishedAt: string | null
@@ -48,12 +59,14 @@ export type MeasureOp =
   | { seq?: number; collectorId: string; participantId: string; kind: 'about'; about: About }
   | { seq?: number; collectorId: string; participantId: string; kind: 'entry'; entry: Entry }
   | { seq?: number; collectorId: string; participantId: string; kind: 'finish'; at: string }
+  | { seq?: number; collectorId: string; participantId: string; kind: 'weight'; weight: Weight }
 
 export interface MeasureApi {
   saveAbout: (participantId: string, about: About) => Promise<void>
   /** Insert, or update the existing row for this participant and code. */
   saveEntry: (participantId: string, entry: Entry) => Promise<void>
   finish: (participantId: string) => Promise<void>
+  saveWeight: (participantId: string, weight: Weight) => Promise<void>
 }
 
 export async function loadDraft(db: FieldDb, participantId: string): Promise<MeasureDraft | undefined> {
@@ -91,6 +104,12 @@ export async function saveEntry(db: FieldDb, draft: MeasureDraft, entry: Entry):
   return next
 }
 
+export async function saveWeightLocal(db: FieldDb, draft: MeasureDraft, weight: Weight): Promise<MeasureDraft> {
+  const next = { ...draft, weight }
+  await record(db, next, { collectorId: draft.collectorId, participantId: draft.participantId, kind: 'weight', weight })
+  return next
+}
+
 export async function finishDraft(db: FieldDb, draft: MeasureDraft, at: string): Promise<MeasureDraft> {
   const next = { ...draft, finishedAt: at }
   await record(db, next, { collectorId: draft.collectorId, participantId: draft.participantId, kind: 'finish', at })
@@ -112,6 +131,7 @@ export async function flushMeasurements(db: FieldDb, collectorId: string, api: M
     try {
       if (op.kind === 'about') await api.saveAbout(op.participantId, op.about)
       else if (op.kind === 'entry') await api.saveEntry(op.participantId, op.entry)
+      else if (op.kind === 'weight') await api.saveWeight(op.participantId, op.weight)
       else await api.finish(op.participantId)
     } catch {
       break

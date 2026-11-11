@@ -42,6 +42,7 @@ export function consentApi(client: SupabaseClient, fetchFn: FetchLike = (i, r) =
         agreed_photos: true,
         child_assent: c.childAssent,
         agreed_intimate: c.agreedIntimate === true,
+        agreed_weight: c.agreedWeight === true,
         signed_at: c.signedAt,
       })
       if (error && !isDuplicate(error, 'consents_participant_id_key')) throw error
@@ -76,6 +77,7 @@ export async function listMine(client: SupabaseClient, practice: boolean): Promi
     hasConsent: r.has_consent === true,
     measured: r.measured === true,
     intimateOk: r.intimate_ok === true,
+    weightOk: r.weight_ok === true,
     sex: (r.sex as 'female' | 'male' | null) ?? null,
     ageYears: (r.age_years as number | null) ?? null,
   }))

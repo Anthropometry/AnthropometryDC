@@ -197,3 +197,19 @@ export function disagreements(code: Code, values: V): Disagreement[] {
     .filter((r) => !r.ok(values[r.a]!, values[r.b]!))
     .map((r) => ({ codes: [r.a, r.b], message: `${r.say} Check both.` }))
 }
+
+// ---------------------------------------------------------------- weight (F5 Amendment A)
+
+/** Expected weight range in kg by age: outside it the app asks to check (can be kept). */
+export function weightRange(age: number): [number, number] {
+  if (age <= 12) return [18, 80]
+  if (age <= 17) return [30, 150]
+  return [30, 200]
+}
+
+/** Null if fine, otherwise the range the weight (in tenths of a kg) falls outside. */
+export function unusualWeight(tenths: number, age: number): [number, number] | null {
+  const [lo, hi] = weightRange(age)
+  const v = tenths / 10
+  return v < lo || v > hi ? [lo, hi] : null
+}

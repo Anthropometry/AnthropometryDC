@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FieldDb } from './consentQueue'
-import { finishDraft, flushMeasurements, loadDraft, saveAbout, saveEntry, startDraft, waitingOps, type Entry, type MeasureApi } from './measureQueue'
+import { finishDraft, flushMeasurements, loadDraft, saveAbout, saveEntry, saveWeightLocal, startDraft, waitingOps, type Entry, type MeasureApi } from './measureQueue'
 
 let db: FieldDb
 afterEach(async () => {
@@ -28,6 +28,7 @@ function api(over: Partial<MeasureApi> = {}) {
     saveAbout: vi.fn(async (id) => void calls.push(`about:${id}`)),
     saveEntry: vi.fn(async (id, e) => void calls.push(`entry:${id}:${e.code}`)),
     finish: vi.fn(async (id) => void calls.push(`finish:${id}`)),
+    saveWeight: vi.fn(async (id, w) => void calls.push(`weight:${id}:${w.kg}:${w.source}`)),
     ...over,
   }
   return { api: a, calls }
@@ -94,5 +95,19 @@ describe('measurement queue', () => {
     const { api: a } = api({ saveEntry: vi.fn(async () => Promise.reject(new Error('offline'))) })
     await flushMeasurements(db, 'me', a)
     expect(await loadDraft(db, 'p1')).toBeDefined()
+  })
+})
+
+describe('weight in the queue (F5 Amendment A)', () => {
+  it('a weight (and a later skip) is kept in the draft and sent in order with the rest', async () => {
+    db = new FieldDb(`test-${Math.random()}`)
+    let d = await draft()
+    d = await saveEntry(db, d, entry('height', ['165.2', '165.4']))
+    d = await saveWeightLocal(db, d, { kg: 72.4, source: 'scale', confirmedUnusual: false })
+    expect((await loadDraft(db, 'p1'))?.weight).toEqual({ kg: 72.4, source: 'scale', confirmedUnusual: false })
+    await saveWeightLocal(db, d, { kg: null, source: null, confirmedUnusual: false })
+    const { api: a, calls } = api()
+    await flushMeasurements(db, 'me', a)
+    expect(calls).toEqual(['entry:p1:height', 'weight:p1:72.4:scale', 'weight:p1:null:null'])
   })
 })

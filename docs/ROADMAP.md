@@ -34,9 +34,9 @@ Must-pass checks. A box is ticked only after Ryan tests it on a phone.
 - [x] Adult and under-18 paths, signature, receipt code (French and Twi deferred until translated, decided 7 Nov)
 - [x] Works fully in airplane mode; collectors can't read consents back
 
-## M4 Measurements (F5)
+## M4 Measurements (F5): done, tested by Ryan on phones, 10 Nov 2026
 
-- [ ] Number pad, skip, inch ⅛, plausibility warnings; cm stored
+- [x] Number pad, skip, inch ⅛, plausibility warnings; cm stored
 
 ## M5 Camera + blur (F6)
 

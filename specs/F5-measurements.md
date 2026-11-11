@@ -335,6 +335,38 @@ after height; no tick → no screen; skip; source required; summary; Finish with
 **Phone test:** consent with the weight tick → after height, Weight: 72.4, Scale → summary shows
 "72.4 kg, scale"; consent without the tick → no weight screen; 15 kg for an adult → "unusual".
 
+## Amendment B (11 Nov 2026): what the person says, before measuring, approved by Ryan, 11 Nov 2026
+
+**Why:** the future app (docs/MISSION.md, "Future use") will receive a **height and weight typed by
+users**, and people often misjudge them by a few cm or kg. Asking first, then measuring, gives each
+record both the stated and the true value, so the model can be built to cope with stated values.
+It can't be collected later.
+
+**Stated height (everyone):**
+- a new screen **just before height**: "What do you think your height is?";
+- the collector's unit: cm (0.1) or feet + inches (whole inches + ⅛);
+- or **"Doesn't know"**.
+
+  It's asked **before** the tape, so the tape reading doesn't influence the answer. It's optional
+  (Finish doesn't wait for it), and no warning is shown: a stated value is kept as said.
+
+**Stated weight (only if weight was agreed at consent, Amendment A):**
+- on the weight screen, first: "Do you know your weight?" → kg (0.1) or **"Doesn't know"**;
+- then the measured weight: **"Weighed on a scale"** (scale value) or **"No scale here"**.
+- **Without a scale**, the stated weight is the only weight, and it's stored as the weight with
+  source `told` (as in Amendment A).
+
+**Data (participant row, no name):**
+- `height_told_cm` (0.1 cm, 50–250; null = doesn't know or not asked);
+- `height_told_typed` + `height_told_unit` (exactly what was said, e.g. `5 7 1/2` in ft/in or
+  `170.5` cm);
+- `weight_told_kg` (0.1 kg, 2–300; null = doesn't know).
+- The database recomputes `height_told_cm` from what was typed, as for tape readings;
+  `weight_told_kg` needs `weight_ok`.
+
+**Tests:** parsing ft/in and cm; recomputed by the database; "doesn't know" stores null; the
+weight told + scale combination; no tick → no weight fields.
+
 ## Open questions for Ryan
 
 None. Answered by Ryan, 9 Nov 2026:

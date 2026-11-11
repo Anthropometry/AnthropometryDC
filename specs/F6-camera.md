@@ -49,6 +49,8 @@ used (DISCUSSION.md).
 2. **Set-up card** (once per participant), with a simple drawing (made in the app):
    - a plain wall; a flat floor; good light from the front, not behind the person;
    - phone about **2.5–3 m away** at **mid-body height** (about 1 m from the floor), held upright;
+   - a **plain A4 sheet** flat on the floor at the feet (front: in front of the toes; side and back:
+     beside the feet, long side towards the camera), kept clean and flat;
    - "Tell the person what you are doing before each photo."
 3. **Live camera** (back camera), for each pose in turn:
    - a **silhouette guide**: an outline of the pose (front, side or back; female or male, drawn
@@ -61,7 +63,7 @@ used (DISCUSSION.md).
      the live view is saved** until it is blurred.
 4. **Review:** the **blurred** photo only (the collector never sees an unblurred saved image):
    - **Use photo** / **Retake**;
-   - "Is the whole body visible, head to heel?";
+   - "Is the whole body visible, head to heel?" and "Is the A4 sheet fully visible and flat?";
    - for the back photo: **Take** or **Skip back photo**.
 5. **Done:** "Photos saved", and the list shows **Complete** (consent, measurements and photos).
 6. **Offline:** photos are kept on the phone (IndexedDB) and sent when online, after the
@@ -170,12 +172,16 @@ the outline of the top of the head visible without showing who it is.
    head and hair stays visible for the model.
 4. **Clothing:** ask for **close-fitting clothing where the participant is comfortable**; never ask
    anyone to undress; the F5 clothing answer is recorded.
-5. *(open: see below)*
+5. **Size reference:** a **plain A4 sheet** (21 × 29.7 cm, ordinary paper) in **every** photo, flat on
+   the floor: just in front of the toes for the front photo, beside the feet for the side and back
+   photos (long side towards the camera). Plain A4, not a custom card, because that is what future
+   users will have (docs/MISSION.md, "Future use"). The outline guide shows where it goes; the review
+   screen asks "Is the A4 sheet fully visible and flat?". Height stays the main scale; the sheet is
+   the second scale and the fallback.
 6. **Phone:** **hand-held** with the level lock and auto-shutter; a tripod (from the project
    coordinator) only if the 20 test photos come out tilted or blurry.
 7. **Children:** the same poses (back optional), with the guardian present.
 
 ## Open questions for Ryan
 
-5. **Size reference in the photo:** none (height as the scale), a plain A4 sheet, or a printed
-   card / floor mat? Ryan asked for an explanation first (11 Nov).
+None. All seven answered (11 Nov 2026).

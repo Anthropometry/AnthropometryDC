@@ -162,25 +162,20 @@ the outline of the top of the head visible without showing who it is.
 7. On a low-cost Android first, then the iPhone.
 8. Ryan: 20 test photos (different light, skin tones, headwraps, side views) → no recognisable face in any.
 
+## Decided (Ryan, 11 Nov 2026)
+
+1. **Poses:** front A-pose and side pose with the near arm forward, both required, as described above.
+2. **Back photo:** optional; the collector can skip it.
+3. **Blur:** **face only, strong** (detector + a fixed face zone always blurred); the outline of the
+   head and hair stays visible for the model.
+4. **Clothing:** ask for **close-fitting clothing where the participant is comfortable**; never ask
+   anyone to undress; the F5 clothing answer is recorded.
+5. *(open: see below)*
+6. **Phone:** **hand-held** with the level lock and auto-shutter; a tripod (from the project
+   coordinator) only if the 20 test photos come out tilted or blurry.
+7. **Children:** the same poses (back optional), with the guardian present.
+
 ## Open questions for Ryan
 
-1. **Poses:** the front A-pose and the side pose with the near arm forward, as described above?
-2. **Back photo:** include it (optional) or leave it out for now? The North Anchor lists it as the
-   first thing to cut.
-3. **Blur extent:** blur the **face only** (detector + face zone), keeping the outline of the head
-   and hair visible for the model, or the **whole head**? I suggest face only, with a strong blur and
-   the fixed face zone always applied.
-4. **Clothing for photos:** light, **close-fitting** clothing gives the model the body outline;
-   loose clothing hides it. Should collectors ask for close-fitting clothing where the participant is
-   comfortable (never asking anyone to undress), and record it with the F5 clothing answer?
-5. **Size reference in the photo** (deferred from F5):
-   - (a) **none:** the measured height is the scale;
-   - (b) an **A4 sheet** or a printed card on the floor at the heels;
-   - (c) a **marked floor mat** (feet positions + scale).
-
-   I suggest (a) for now: no extra kit, and height is measured carefully twice. Revisit if the model
-   needs it.
-6. **Phone stand:** hand-held with the level lock and auto-shutter (free), or a small **tripod** per
-   collector (steadier, the same distance every time; the project coordinator would provide)? I
-   suggest hand-held first, a tripod if the 20-photo test shows blurry or tilted photos.
-7. **Children:** the same poses, with the guardian present. OK?
+5. **Size reference in the photo:** none (height as the scale), a plain A4 sheet, or a printed
+   card / floor mat? Ryan asked for an explanation first (11 Nov).

@@ -1,6 +1,6 @@
 # F6: Camera and face blur
 
-**Status:** draft <!-- draft | approved | built | verified — only Ryan sets "approved" -->
+**Status:** approved by Ryan, 11 Nov 2026 <!-- draft | approved | built | verified — only Ryan sets "approved" -->
 **Milestone:** M5
 **Branch:** `f6-camera`
 

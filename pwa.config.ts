@@ -25,7 +25,10 @@ export const pwaOptions: Partial<VitePWAOptions> = {
     ],
   },
   workbox: {
-    globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+    // F6: the face detector (MediaPipe runtime .wasm + model .tflite) is kept for offline use too,
+    // so the blur always works without signal. The runtime is ~11 MB, hence the higher limit.
+    globPatterns: ['**/*.{js,css,html,svg,png,woff2,wasm,tflite}'],
+    maximumFileSizeToCacheInBytes: 16 * 1024 * 1024,
     navigateFallback: '/index.html',
     // Never let the service worker answer API calls from cache.
     navigateFallbackDenylist: [/^\/api\//],

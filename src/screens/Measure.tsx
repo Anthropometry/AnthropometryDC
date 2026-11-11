@@ -13,6 +13,9 @@ import {
   readingTenths,
   setFor,
   showCm,
+  toldHeightTenths,
+  ftinTyped,
+  EIGHTHS,
   unusual,
   unusualWeight,
   valueTenths,
@@ -31,6 +34,9 @@ export interface MeasureStore {
   finish: (d: MeasureDraft) => Promise<MeasureDraft>
   /** F5 Amendment A: weight (kg null = skipped). */
   weight: (d: MeasureDraft, w: Weight) => Promise<MeasureDraft>
+  /** F5 Amendment B: what the person says (null = doesn't know). */
+  toldHeight: (d: MeasureDraft, typed: string | null, unit: 'cm' | 'ftin' | null) => Promise<MeasureDraft>
+  toldWeight: (d: MeasureDraft, kg: number | null) => Promise<MeasureDraft>
 }
 
 export interface MeasureFlowProps {
@@ -55,7 +61,7 @@ const REASON_TEXT: Record<SkipReason, string> = {
   declined_at_consent: 'declined at consent',
 }
 
-type Step = 'about' | 'intro' | 'measure' | 'weight' | 'summary'
+type Step = 'about' | 'intro' | 'toldHeight' | 'measure' | 'weight' | 'summary'
 type Prompt = { kind: 'unusual' | 'disagree'; text: string } | null
 
 /** Value in tenths of a stored entry (null if skipped or incomplete). */
@@ -306,7 +312,8 @@ export function MeasureFlow({ draft: initial, unit, store, onDone, onBack, now =
     wPadNow.current = v
     setWPadState(v)
   }
-  const [wSource, setWSource] = useState<'scale' | 'told' | null>(null)
+  /** First "Do you know your weight?", then the scale (F5 Amendment B). */
+  const [wPhase, setWPhase] = useState<'told' | 'scale'>('told')
   const [wPrompt, setWPrompt] = useState<string | null>(null)
   const afterHeight = () => {
     const i = screens.indexOf('height') + 1
@@ -315,10 +322,25 @@ export function MeasureFlow({ draft: initial, unit, store, onDone, onBack, now =
   }
   function openWeight() {
     setWPad('')
-    setWSource(draft.weight?.source ?? null)
+    setWPhase('told')
     setWPrompt(null)
     setError('')
     setStep('weight')
+  }
+  async function saveTold(kg: number | null) {
+    try {
+      setDraft(await store.toldWeight(draft, kg))
+      setWPad('')
+      setWPhase('scale')
+    } catch {
+      setError('Could not save on this phone. Try again.')
+    }
+  }
+  function toldNext() {
+    const t = readingTenths(wPadNow.current, 'cm')
+    if (t === null || t < 20) return setError('Type the weight like 72.4 (one decimal at most).')
+    setError('')
+    void saveTold(t / 10)
   }
   async function saveWeight(w: Weight) {
     try {
@@ -331,18 +353,74 @@ export function MeasureFlow({ draft: initial, unit, store, onDone, onBack, now =
   }
   function weightNext(confirmed = false) {
     const t = readingTenths(wPadNow.current, 'cm')
-    if (t === null) return setError('Type the weight like 72.4 (one decimal at most).')
-    if (!wSource) return setError('Say how the weight was obtained.')
+    if (t === null || t < 20) return setError('Type the weight like 72.4 (one decimal at most).')
     setError('')
     const range = unusualWeight(t, draft.about!.ageYears)
     if (range && !confirmed) {
       setWPrompt(`${(t / 10).toFixed(1)} kg is unusual (expected ${range[0]}–${range[1]} kg${draft.about!.ageYears < 18 ? ' at this age' : ' for adults'}). Check the scale or ask again.`)
       return
     }
-    void saveWeight({ kg: t / 10, source: wSource, confirmedUnusual: confirmed })
+    void saveWeight({ kg: t / 10, source: 'scale', confirmedUnusual: confirmed })
   }
-  const weightText = (w: Weight | undefined) =>
-    !w ? 'not yet' : w.kg === null ? 'skipped' : `${w.kg.toFixed(1)} kg, ${w.source === 'scale' ? 'scale' : 'told'}${w.confirmedUnusual ? ' ✓ checked' : ''}`
+  /** No scale here: the stated weight is the weight (source told), or nothing. */
+  const noScale = () =>
+    void saveWeight(
+      draft.weightToldKg != null
+        ? { kg: draft.weightToldKg, source: 'told', confirmedUnusual: false }
+        : { kg: null, source: null, confirmedUnusual: false },
+    )
+  const weightText = (w: Weight | undefined, told?: number | null) =>
+    (!w ? 'not yet' : w.kg === null ? 'skipped' : `${w.kg.toFixed(1)} kg, ${w.source === 'scale' ? 'scale' : 'told'}${w.confirmedUnusual ? ' ✓ checked' : ''}`) +
+    (told != null && w?.source === 'scale' ? ` · said ${told.toFixed(1)}` : '')
+
+  // ---------------------------------------------------------------- stated height (F5 Amendment B)
+  const toldUnit: 'cm' | 'ftin' = unit === 'cm' ? 'cm' : 'ftin'
+  const [feet, setFeet] = useState<number | null>(null)
+  const [hPad, setHPadState] = useState('')
+  const hPadNow = useRef('')
+  const setHPad = (v: string) => {
+    hPadNow.current = v
+    setHPadState(v)
+  }
+  function openToldHeight() {
+    setFeet(null)
+    setHPad('')
+    setError('')
+    setStep('toldHeight')
+  }
+  /** The stated-height text from the pad: cm as typed, or feet + "inches eighths". */
+  function toldTyped(): string | null {
+    const v = hPadNow.current
+    if (toldUnit === 'cm') return v || null
+    if (feet === null || !v) return null
+    const [whole, frac] = v.split(' ')
+    const inches = Number(whole)
+    if (!Number.isInteger(inches) || inches > 11) return null
+    const e = EIGHTHS.find((x) => x.text === frac)?.eighths ?? 0
+    return ftinTyped(feet, inches, e)
+  }
+  async function saveToldHeight(typed: string | null) {
+    try {
+      setDraft(await store.toldHeight(draft, typed, typed === null ? null : toldUnit))
+      open(screens.indexOf('height'))
+    } catch {
+      setError('Could not save on this phone. Try again.')
+    }
+  }
+  function toldHeightNext() {
+    const typed = toldTyped()
+    if (!typed || toldHeightTenths(typed, toldUnit) === null) {
+      return setError(toldUnit === 'cm' ? 'Type a height like 170.5 cm.' : 'Choose the feet, then type the inches (0 to 11).')
+    }
+    setError('')
+    void saveToldHeight(typed)
+  }
+  const toldHeightText = () =>
+    draft.toldHeight === undefined
+      ? 'not asked'
+      : draft.toldHeight.typed === null
+        ? "doesn't know"
+        : `${(toldHeightTenths(draft.toldHeight.typed, draft.toldHeight.unit ?? 'cm')! / 10).toFixed(1)} cm (said ${draft.toldHeight.typed}${draft.toldHeight.unit === 'cm' ? ' cm' : ''})`
 
   const firstIntimate = screens.find((c) => INTIMATE.has(c))
   const done = codes.every((c) => draft.entries[c])
@@ -378,10 +456,43 @@ export function MeasureFlow({ draft: initial, unit, store, onDone, onBack, now =
           <p className="text-sm text-slate-600">
             {screens.length} measurements{codes.length > screens.length ? ` (${codes.length - screens.length} declined at consent)` : ''}.
           </p>
-          <Button onClick={() => open(0)}>Start measuring</Button>
+          <Button onClick={() => (draft.toldHeight === undefined ? openToldHeight() : open(0))}>Start measuring</Button>
           <Button variant="secondary" onClick={onBack}>
             Back
           </Button>
+        </>
+      )}
+
+      {step === 'toldHeight' && draft.about && (
+        <>
+          <p className="text-sm font-semibold text-slate-600">Before the tape · optional</p>
+          <Title>What do you think your height is?</Title>
+          <p>Ask before measuring, and type what the person says, even if it seems wrong.</p>
+          {toldUnit === 'ftin' && (
+            <fieldset className="flex flex-col gap-2">
+              <legend className="mb-1 text-sm font-semibold">Feet</legend>
+              <div className="grid grid-cols-4 gap-2">
+                {[4, 5, 6, 7].map((f) => (
+                  <Choice key={f} chosen={feet === f} onClick={() => setFeet(f)}>
+                    {`${f} ft`}
+                  </Choice>
+                ))}
+              </div>
+              <p className="text-sm text-slate-600">Then the inches (0 to 11) below.</p>
+            </fieldset>
+          )}
+          <ReadingPad unit={toldUnit === 'cm' ? 'cm' : 'in'} value={hPad} onChange={setHPad} feet={toldUnit === 'ftin' ? feet : undefined} />
+          <Button disabled={!hPad || (toldUnit === 'ftin' && feet === null)} onClick={toldHeightNext}>
+            Next
+          </Button>
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="secondary" onClick={() => setStep('intro')}>
+              Back
+            </Button>
+            <Button variant="secondary" onClick={() => void saveToldHeight(null)}>
+              Doesn&apos;t know
+            </Button>
+          </div>
         </>
       )}
 
@@ -501,10 +612,32 @@ export function MeasureFlow({ draft: initial, unit, store, onDone, onBack, now =
       {step === 'weight' && draft.about && (
         <>
           <p className="text-sm font-semibold text-slate-600">After height · optional</p>
-          <Title>Weight (optional)</Title>
-          <p>Scale on a hard, flat floor; shoes and heavy pocket items off; stand still; read when the number settles. Or ask the participant.</p>
-          {draft.weight && !wPad && !wPrompt && <p className="text-sm text-slate-600">Saved: {weightText(draft.weight)}.</p>}
-          {wPrompt ? (
+          <Title>{wPhase === 'told' ? 'Do you know your weight?' : 'Weigh on the scale'}</Title>
+          {wPhase === 'told' ? (
+            <>
+              <p>Ask first, and type what the person says.</p>
+              {draft.weightToldKg !== undefined && !wPad && (
+                <p className="text-sm text-slate-600">Saved: {draft.weightToldKg === null ? "doesn't know" : `${draft.weightToldKg.toFixed(1)} kg`}.</p>
+              )}
+              <ReadingPad unit="cm" kg value={wPad} onChange={setWPad} />
+              <Button disabled={!wPad} onClick={toldNext}>
+                Next
+              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="secondary" onClick={() => open(screens.indexOf('height'))}>
+                  Back
+                </Button>
+                <Button variant="secondary" onClick={() => void saveTold(null)}>
+                  Doesn&apos;t know
+                </Button>
+              </div>
+              {draft.weightToldKg !== undefined && !wPad && (
+                <Button variant="secondary" onClick={() => setWPhase('scale')}>
+                  Keep saved value
+                </Button>
+              )}
+            </>
+          ) : wPrompt ? (
             <div role="alertdialog" aria-label="Check the weight" className="flex flex-col gap-3 rounded-xl border-2 border-amber-400 bg-amber-50 p-4">
               <p>{wPrompt}</p>
               <Button
@@ -521,27 +654,18 @@ export function MeasureFlow({ draft: initial, unit, store, onDone, onBack, now =
             </div>
           ) : (
             <>
-              <fieldset className="flex flex-col gap-2">
-                <legend className="mb-1 text-sm font-semibold">How</legend>
-                <div className="grid grid-cols-2 gap-2">
-                  <Choice chosen={wSource === 'scale'} onClick={() => setWSource('scale')}>
-                    Weighed on a scale
-                  </Choice>
-                  <Choice chosen={wSource === 'told'} onClick={() => setWSource('told')}>
-                    Participant told me
-                  </Choice>
-                </div>
-              </fieldset>
+              <p>Scale on a hard, flat floor; shoes and heavy pocket items off; stand still; read when the number settles.</p>
+              {draft.weight && !wPad && <p className="text-sm text-slate-600">Saved: {weightText(draft.weight, draft.weightToldKg)}.</p>}
               <ReadingPad unit="cm" kg value={wPad} onChange={setWPad} />
-              <Button disabled={!wPad || !wSource} onClick={() => weightNext()}>
+              <Button disabled={!wPad} onClick={() => weightNext()}>
                 Next
               </Button>
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="secondary" onClick={() => open(screens.indexOf('height'))}>
+                <Button variant="secondary" onClick={() => setWPhase('told')}>
                   Back
                 </Button>
-                <Button variant="secondary" onClick={() => void saveWeight({ kg: null, source: null, confirmedUnusual: false })}>
-                  Skip weight
+                <Button variant="secondary" onClick={noScale}>
+                  No scale here
                 </Button>
               </div>
               {draft.weight && !wPad && (
@@ -582,6 +706,14 @@ export function MeasureFlow({ draft: initial, unit, store, onDone, onBack, now =
               )
             })}
           </ul>
+          <button
+            type="button"
+            onClick={openToldHeight}
+            className="flex w-full justify-between rounded-lg border border-dashed border-slate-300 bg-white p-3 text-left"
+          >
+            <span>Stated height</span>
+            <span className="font-semibold">{toldHeightText()}</span>
+          </button>
           {draft.weightOk && (
             <button
               type="button"
@@ -589,7 +721,7 @@ export function MeasureFlow({ draft: initial, unit, store, onDone, onBack, now =
               className="flex w-full justify-between rounded-lg border border-dashed border-slate-300 bg-white p-3 text-left"
             >
               <span>Weight (optional)</span>
-              <span className="font-semibold">{weightText(draft.weight)}</span>
+              <span className="font-semibold">{weightText(draft.weight, draft.weightToldKg)}</span>
             </button>
           )}
           {draft.finishedAt ? (

@@ -23,6 +23,7 @@ const draft = (over: Partial<MeasureDraft> = {}): MeasureDraft => ({
   about: null,
   entries: {},
   finishedAt: null,
+  toldHeight: { typed: null, unit: null }, // stated height asked already (Amendment B tests are in f5a)
   ...over,
 })
 
@@ -36,6 +37,8 @@ function fakeStore() {
     }),
     finish: vi.fn(async (d) => ({ ...d, finishedAt: 'now' })),
     weight: vi.fn(async (d, w) => ({ ...d, weight: w })),
+    toldHeight: vi.fn(async (d, typed, unit) => ({ ...d, toldHeight: { typed, unit } })),
+    toldWeight: vi.fn(async (d, kg) => ({ ...d, weightToldKg: kg })),
   }
   return { store, entries }
 }

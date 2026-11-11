@@ -56,6 +56,8 @@ import {
   saveAbout as saveAboutLocal,
   saveEntry as saveEntryLocal,
   saveWeightLocal,
+  saveToldHeightLocal,
+  saveToldWeightLocal,
   startDraft,
   waitingOps,
   type MeasureDraft,
@@ -404,6 +406,18 @@ export default function App() {
       },
       weight: async (d, w) => {
         const next = await saveWeightLocal(fieldDb!, d, w)
+        bump()
+        sendAll(d.collectorId)
+        return next
+      },
+      toldHeight: async (d, typed, unit) => {
+        const next = await saveToldHeightLocal(fieldDb!, d, typed, unit)
+        bump()
+        sendAll(d.collectorId)
+        return next
+      },
+      toldWeight: async (d, kg) => {
+        const next = await saveToldWeightLocal(fieldDb!, d, kg)
         bump()
         sendAll(d.collectorId)
         return next

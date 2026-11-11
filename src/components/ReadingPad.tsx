@@ -4,7 +4,7 @@
  * Hands back the reading exactly as it will be stored ("87.3", "34 3/8").
  */
 import { useEffect, useRef } from 'react'
-import { EIGHTHS, inchesTyped, readingTenths, showCm, type Unit } from '../lib/measurements'
+import { EIGHTHS, ftinTyped, inchesTyped, readingTenths, showCm, toldHeightTenths, type Unit } from '../lib/measurements'
 
 export interface ReadingPadProps {
   unit: Unit
@@ -15,6 +15,8 @@ export interface ReadingPadProps {
   addCm?: number
   /** Weight (F5 Amendment A): same 0.1 pad, shown in kg, no conversion line. */
   kg?: boolean
+  /** Stated height in feet + inches (F5 Amendment B): the pad types the inches; shown with the feet. */
+  feet?: number | null
 }
 
 /** "34 3/8" → [ "34", 3 ]; "34" → ["34", 0] */
@@ -26,9 +28,13 @@ function splitInches(v: string): [string, number] {
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'] as const
 
-export function ReadingPad({ unit, value, onChange: report, addCm = 0, kg = false }: ReadingPadProps) {
+export function ReadingPad({ unit, value, onChange: report, addCm = 0, kg = false, feet }: ReadingPadProps) {
   const [whole, eighths] = unit === 'in' ? splitInches(value) : [value, 0]
-  const tenths = value ? readingTenths(value, unit) : null
+  const tenths = !value
+    ? null
+    : feet != null
+      ? toldHeightTenths(ftinTyped(feet, Number(whole), eighths), 'ftin')
+      : readingTenths(value, unit)
 
   // Fast taps can arrive before the screen redraws: always build on the latest value, not the last drawn one.
   const latest = useRef(value)
@@ -62,7 +68,7 @@ export function ReadingPad({ unit, value, onChange: report, addCm = 0, kg = fals
 
   const shown =
     unit === 'in'
-      ? `${whole || '0'}${eighths ? ' ' + EIGHTHS[eighths].glyph : ''} in`
+      ? `${feet != null ? `${feet} ft ` : ''}${whole || '0'}${eighths ? ' ' + EIGHTHS[eighths].glyph : ''} in`
       : `${value || '0'} ${kg ? 'kg' : 'cm'}`
 
   return (
@@ -76,7 +82,7 @@ export function ReadingPad({ unit, value, onChange: report, addCm = 0, kg = fals
               : 'Type the weight in kg'
             : tenths !== null
               ? unit === 'in' || addCm
-                ? `= ${showCm(tenths + addCm * 10)}`
+                ? `= ${showCm(tenths + (feet != null ? 0 : addCm * 10))}`
                 : ' '
               : 'Type the reading from the tape'}
         </p>

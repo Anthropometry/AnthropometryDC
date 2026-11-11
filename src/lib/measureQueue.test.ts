@@ -29,6 +29,8 @@ function api(over: Partial<MeasureApi> = {}) {
     saveEntry: vi.fn(async (id, e) => void calls.push(`entry:${id}:${e.code}`)),
     finish: vi.fn(async (id) => void calls.push(`finish:${id}`)),
     saveWeight: vi.fn(async (id, w) => void calls.push(`weight:${id}:${w.kg}:${w.source}`)),
+    saveToldHeight: vi.fn(async (id, t, u) => void calls.push(`toldHeight:${id}:${t}:${u}`)),
+    saveToldWeight: vi.fn(async (id, kg) => void calls.push(`toldWeight:${id}:${kg}`)),
     ...over,
   }
   return { api: a, calls }

@@ -213,3 +213,31 @@ export function unusualWeight(tenths: number, age: number): [number, number] | n
   const v = tenths / 10
   return v < lo || v > hi ? [lo, hi] : null
 }
+
+// ---------------------------------------------------------------- stated height (F5 Amendment B)
+
+export type ToldUnit = 'cm' | 'ftin'
+
+/** Feet, inches (0–11) and eighths → stored text, e.g. (5, 7, 4) → "5 7 1/2". */
+export function ftinTyped(feet: number, inches: number, eighths: number): string {
+  const f = EIGHTHS[eighths]?.text ?? ''
+  return f ? `${feet} ${inches} ${f}` : `${feet} ${inches}`
+}
+
+/** Stated height → tenths of a cm, or null. Same rules as the database (private.told_height_cm). */
+export function toldHeightTenths(typed: string, unit: ToldUnit): number | null {
+  let tenths: number | null
+  if (unit === 'cm') tenths = readingTenths(typed, 'cm')
+  else {
+    const m = typed.match(/^([1-8]) (\d|1[01])(?: ([1-7])\/([248]))?$/)
+    if (!m) return null
+    let eighths = (Number(m[1]) * 12 + Number(m[2])) * 8
+    if (m[3]) {
+      const ok = (m[4] === '2' && m[3] === '1') || (m[4] === '4' && ['1', '3'].includes(m[3])) || (m[4] === '8' && ['1', '3', '5', '7'].includes(m[3]))
+      if (!ok) return null
+      eighths += (Number(m[3]) * 8) / Number(m[4])
+    }
+    tenths = Math.round((eighths * 3175) / 1000)
+  }
+  return tenths !== null && tenths >= 500 && tenths <= 2500 ? tenths : null
+}

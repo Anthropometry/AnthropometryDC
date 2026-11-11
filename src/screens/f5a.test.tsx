@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** F5 Amendment A screens: optional weight tick, weight screen after height, summary, Finish. */
+/** F5 Amendments A and B: optional weight tick; stated height before the tape; stated weight, then the scale; summary. */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MeasureFlow, type MeasureStore } from './Measure'
@@ -28,6 +28,7 @@ const draft = (over: Partial<MeasureDraft> = {}): MeasureDraft => ({
 
 function fakeStore() {
   const weights: Weight[] = []
+  const told: unknown[] = []
   const store: MeasureStore = {
     about: vi.fn(async (d, a) => ({ ...d, about: a })),
     entry: vi.fn(async (d, e) => ({ ...d, entries: { ...d.entries, [e.code]: e } })),
@@ -36,16 +37,27 @@ function fakeStore() {
       weights.push(w)
       return { ...d, weight: w }
     }),
+    toldHeight: vi.fn(async (d, typed, unit) => {
+      told.push(['height', typed, unit])
+      return { ...d, toldHeight: { typed, unit } }
+    }),
+    toldWeight: vi.fn(async (d, kg) => {
+      told.push(['weight', kg])
+      return { ...d, weightToldKg: kg }
+    }),
   }
-  return { store, weights }
+  return { store, weights, told }
 }
 
 const btn = (name: string | RegExp) => screen.getByRole('button', { name }) as HTMLButtonElement
 const press = (...keys: string[]) =>
   keys.forEach((k) => fireEvent.click(screen.getByRole('button', { name: k === '.' ? 'Decimal point' : k })))
 
-function measureHeight() {
+async function measureHeight() {
   fireEvent.click(btn('Start measuring'))
+  await waitFor(() => screen.getByRole('heading', { name: 'What do you think your height is?' }))
+  fireEvent.click(btn("Doesn't know"))
+  await waitFor(() => screen.getByRole('heading', { name: 'Height' }))
   press('1', '6', '5', '.', '2')
   fireEvent.click(btn('Save reading, measure again'))
   press('1', '6', '5', '.', '4')
@@ -62,57 +74,119 @@ describe('weight logic', () => {
   })
 })
 
-describe('weight screen (only with the consent tick)', () => {
-  it('comes right after height; needs a source; saved in kg with the source; then the next measurement', async () => {
+describe('stated height before the tape (Amendment B)', () => {
+  it('cm: typed as said, saved before the tape, then the height screen', async () => {
+    const s = fakeStore()
+    render(<MeasureFlow draft={draft()} unit="cm" store={s.store} onDone={vi.fn()} onBack={vi.fn()} />)
+    fireEvent.click(btn('Start measuring'))
+    await waitFor(() => screen.getByRole('heading', { name: 'What do you think your height is?' }))
+    press('1', '7', '0')
+    fireEvent.click(btn('Next'))
+    await waitFor(() => screen.getByRole('heading', { name: 'Height' }))
+    expect(s.told).toEqual([['height', '170', 'cm']])
+  })
+
+  it('feet + inches: needs the feet; shows the cm; stored as "5 7 1/2"', async () => {
+    const s = fakeStore()
+    render(<MeasureFlow draft={draft()} unit="in" store={s.store} onDone={vi.fn()} onBack={vi.fn()} />)
+    fireEvent.click(btn('Start measuring'))
+    await waitFor(() => screen.getByRole('heading', { name: 'What do you think your height is?' }))
+    press('7')
+    fireEvent.click(screen.getByRole('button', { name: '½' }))
+    expect(btn('Next').disabled).toBe(true) // feet not chosen
+    fireEvent.click(btn('5 ft'))
+    expect(screen.getByRole('status', { name: 'Reading' }).textContent).toMatch(/5 ft 7 ½ in.*171\.5 cm/)
+    fireEvent.click(btn('Next'))
+    await waitFor(() => expect(s.told).toEqual([['height', '5 7 1/2', 'ftin']]))
+  })
+
+  it('DENY: 12 inches is refused with a message; nothing saved', async () => {
+    const s = fakeStore()
+    render(<MeasureFlow draft={draft()} unit="in" store={s.store} onDone={vi.fn()} onBack={vi.fn()} />)
+    fireEvent.click(btn('Start measuring'))
+    await waitFor(() => screen.getByRole('heading', { name: 'What do you think your height is?' }))
+    fireEvent.click(btn('5 ft'))
+    press('1', '2')
+    fireEvent.click(btn('Next'))
+    screen.getByText(/Choose the feet, then type the inches/)
+    expect(s.told).toEqual([])
+  })
+
+  it('already asked: Start measuring goes straight to the tape', async () => {
+    const s = fakeStore()
+    render(<MeasureFlow draft={draft({ toldHeight: { typed: null, unit: null } })} unit="cm" store={s.store} onDone={vi.fn()} onBack={vi.fn()} />)
+    fireEvent.click(btn('Start measuring'))
+    await waitFor(() => screen.getByRole('heading', { name: 'Height' }))
+    expect(s.told).toEqual([])
+  })
+})
+
+describe('weight (only with the consent tick): asked first, then the scale', () => {
+  it('after height: "Do you know your weight?", then the scale; both stored; then the next measurement', async () => {
     const s = fakeStore()
     render(<MeasureFlow draft={draft()} unit="cm" store={s.store} onDone={vi.fn()} onBack={vi.fn()} />)
     screen.getByText(/Weight \(after height\)/) // the "Before you start" card mentions weighing
-    measureHeight()
-    await waitFor(() => screen.getByRole('heading', { name: 'Weight (optional)' }))
+    await measureHeight()
+    await waitFor(() => screen.getByRole('heading', { name: 'Do you know your weight?' }))
+    press('7', '0')
+    fireEvent.click(btn('Next'))
+    await waitFor(() => screen.getByRole('heading', { name: 'Weigh on the scale' }))
     press('7', '2', '.', '4')
     expect(screen.getByRole('status', { name: 'Reading' }).textContent).toMatch(/72\.4 kg/)
-    expect(btn('Next').disabled).toBe(true) // no source yet
-    fireEvent.click(btn('Weighed on a scale'))
     fireEvent.click(btn('Next'))
     await waitFor(() => screen.getByRole('heading', { name: 'Neck girth' }))
+    expect(s.told).toEqual([
+      ['height', null, null],
+      ['weight', 70],
+    ])
     expect(s.weights).toEqual([{ kg: 72.4, source: 'scale', confirmedUnusual: false }])
   })
 
   it('without the tick there is no weight screen', async () => {
     render(<MeasureFlow draft={draft({ weightOk: false })} unit="cm" store={fakeStore().store} onDone={vi.fn()} onBack={vi.fn()} />)
     expect(screen.queryByText(/Weight \(after height\)/)).toBeNull()
-    measureHeight()
+    await measureHeight()
     await waitFor(() => screen.getByRole('heading', { name: 'Neck girth' }))
   })
 
-  it('Skip weight stores "skipped" and moves on', async () => {
+  it('No scale here: the stated weight becomes the weight, source "told"', async () => {
     const s = fakeStore()
-    render(<MeasureFlow draft={draft()} unit="in" store={s.store} onDone={vi.fn()} onBack={vi.fn()} />)
-    fireEvent.click(btn('Start measuring'))
-    fireEvent.click(btn('Steel tape'))
-    // inches for height: 65 and 65 ⅛
-    press('6', '5')
-    fireEvent.click(btn('Save reading, measure again'))
-    press('6', '5')
-    fireEvent.click(screen.getByRole('button', { name: '⅛' }))
+    render(<MeasureFlow draft={draft()} unit="cm" store={s.store} onDone={vi.fn()} onBack={vi.fn()} />)
+    await measureHeight()
+    await waitFor(() => screen.getByRole('heading', { name: 'Do you know your weight?' }))
+    press('6', '8', '.', '5')
     fireEvent.click(btn('Next'))
-    await waitFor(() => screen.getByRole('heading', { name: 'Weight (optional)' }))
-    fireEvent.click(btn('Skip weight'))
+    await waitFor(() => screen.getByRole('heading', { name: 'Weigh on the scale' }))
+    fireEvent.click(btn('No scale here'))
     await waitFor(() => screen.getByRole('heading', { name: 'Neck girth' }))
+    expect(s.weights).toEqual([{ kg: 68.5, source: 'told', confirmedUnusual: false }])
+  })
+
+  it("Doesn't know + no scale: weight stored as skipped", async () => {
+    const s = fakeStore()
+    render(<MeasureFlow draft={draft()} unit="cm" store={s.store} onDone={vi.fn()} onBack={vi.fn()} />)
+    await measureHeight()
+    await waitFor(() => screen.getByRole('heading', { name: 'Do you know your weight?' }))
+    fireEvent.click(btn("Doesn't know"))
+    await waitFor(() => screen.getByRole('heading', { name: 'Weigh on the scale' }))
+    fireEvent.click(btn('No scale here'))
+    await waitFor(() => screen.getByRole('heading', { name: 'Neck girth' }))
+    expect(s.told).toContainEqual(['weight', null])
     expect(s.weights).toEqual([{ kg: null, source: null, confirmedUnusual: false }])
   })
 
-  it('an unusual weight asks to check; Keep stores it as checked', async () => {
+  it('an unusual scale weight asks to check; Keep stores it as checked', async () => {
     const s = fakeStore()
     render(<MeasureFlow draft={draft()} unit="cm" store={s.store} onDone={vi.fn()} onBack={vi.fn()} />)
-    measureHeight()
-    await waitFor(() => screen.getByRole('heading', { name: 'Weight (optional)' }))
-    fireEvent.click(btn('Participant told me'))
+    await measureHeight()
+    await waitFor(() => screen.getByRole('heading', { name: 'Do you know your weight?' }))
+    fireEvent.click(btn("Doesn't know"))
+    await waitFor(() => screen.getByRole('heading', { name: 'Weigh on the scale' }))
     press('1', '5')
     fireEvent.click(btn('Next'))
     screen.getByText(/15\.0 kg is unusual \(expected 30–200 kg for adults\)/)
     fireEvent.click(btn('Keep 15.0 kg'))
-    await waitFor(() => expect(s.weights).toEqual([{ kg: 15, source: 'told', confirmedUnusual: true }]))
+    await waitFor(() => expect(s.weights).toEqual([{ kg: 15, source: 'scale', confirmedUnusual: true }]))
   })
 })
 
@@ -140,6 +214,16 @@ describe('summary', () => {
   it('shows a saved weight with its source', () => {
     render(<MeasureFlow draft={draft({ entries: { height: { code: 'height', unit: 'cm', readingsTyped: ['165.2', '165.4'], skipped: false, skipReason: null, skipNote: null, confirmedUnusual: false, heightMethod: 'steel_tape', hairAddsHeight: false, measuredAt: '' } }, weight: { kg: 72.4, source: 'told', confirmedUnusual: false } })} unit="cm" store={fakeStore().store} onDone={vi.fn()} onBack={vi.fn()} />)
     screen.getByText('72.4 kg, told')
+  })
+
+  it('shows the stated height and the stated weight next to the scale value', () => {
+    const all: Partial<Record<Code, Entry>> = {}
+    for (const c of setFor('male', 9))
+      all[c] = { code: c, unit: null, readingsTyped: [], skipped: true, skipReason: 'other', skipNote: 'x', confirmedUnusual: false, heightMethod: null, hairAddsHeight: null, measuredAt: '' }
+    const d = draft({ ageGroup: 'child', about: { sex: 'male', ageYears: 9, clothing: 'light' }, entries: all })
+    render(<MeasureFlow draft={{ ...d, toldHeight: { typed: '5 7 1/2', unit: 'ftin' }, weightToldKg: 70, weight: { kg: 72.4, source: 'scale', confirmedUnusual: false } }} unit="cm" store={fakeStore().store} onDone={vi.fn()} onBack={vi.fn()} />)
+    screen.getByText('171.5 cm (said 5 7 1/2)')
+    screen.getByText('72.4 kg, scale · said 70.0')
   })
 })
 

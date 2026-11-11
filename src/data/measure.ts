@@ -58,6 +58,20 @@ export function measureApi(client: SupabaseClient): MeasureApi {
       if (error) throw error
       if (!data || data.length !== 1) throw new Error('not_saved')
     },
+    async saveToldHeight(participantId: string, typed: string | null, unit: 'cm' | 'ftin' | null) {
+      const { data, error } = await client
+        .from('participants')
+        .update({ height_told_typed: typed, height_told_unit: typed === null ? null : unit })
+        .eq('id', participantId)
+        .select('id')
+      if (error) throw error
+      if (!data || data.length !== 1) throw new Error('not_saved')
+    },
+    async saveToldWeight(participantId: string, kg: number | null) {
+      const { data, error } = await client.from('participants').update({ weight_told_kg: kg }).eq('id', participantId).select('id')
+      if (error) throw error
+      if (!data || data.length !== 1) throw new Error('not_saved')
+    },
     async finish(participantId: string) {
       const { data, error } = await client
         .from('participants')

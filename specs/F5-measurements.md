@@ -289,6 +289,52 @@ ranges, then widened so very small, very tall and very large adults don't get fa
 9. Child 7 → can't be measured; child 10 → 9 measurements; male 15 → 18.
 10. Airplane mode → measure → "waiting to upload" → back online → "All saved".
 
+## Amendment A (11 Nov 2026): optional weight (draft, for Ryan's approval)
+
+Ryan asked to collect body weight as an extra, optional data point. Where this amendment and the
+text above disagree (decision 10: "no weight"), the amendment wins.
+
+**Decided by Ryan (10–11 Nov):**
+- **Consent:** weight has its **own optional tick** on the consent form (adult and guardian screens).
+- **When:** asked **right after height**, only if that tick was given. Without it, the weight screen
+  is never shown.
+- **Source:** **both** are accepted and recorded: **weighed on a scale** or **participant told me**
+  (self-reported weights are usually a few kg off, so the data must say which).
+- **Scales:** the **project coordinator provides a digital bathroom scale** per collector
+  (at least 180 kg, 0.1 kg steps).
+
+**Screen "Weight (optional)":**
+- a number pad in **kg to 0.1** (e.g. 72.4), the same pad as the tape measurements;
+- **How:** "Weighed on a scale" / "Participant told me" (required with a value);
+- **Skip** (no reason needed: weight is optional);
+- **Finish does not wait for weight**; the summary shows it ("72.4 kg, scale", "told", or "skipped").
+
+**Weighing (on the "Before you start" card and in training):** a hard, flat floor (outdoors, a flat
+board); shoes off; phone, keys and wallet out of pockets; light clothing (already recorded); stand
+still in the middle; read when the number stops changing. Each morning, check the scale with
+something of known weight (e.g. a sealed 5 kg bag of rice); more than 0.2 kg off means new
+batteries or another scale. This check is a training practice, **not a step in the app** (as for tapes).
+
+**Unusual values (warn, can be kept, marked checked):** adults 30–200 kg; children 8–12:
+18–80 kg; 13–17: 30–150 kg.
+
+**Data:**
+- `consents.agreed_weight` (boolean, write-only for collectors), copied to `participants.weight_ok`
+  (no name), like the intimate tick;
+- `participants.weight_kg` (0.1 kg, 2–300), `weight_source` (`scale` / `told`), set by the collector;
+  the database refuses a weight without `weight_ok`, a weight without a source, or a source without
+  a weight; deleted with the participant on withdrawal; exported with `real_participants`.
+
+**Consent text (practice):** "Optional: I agree to my weight being recorded (on a scale, or as I tell
+you)." The **real v1 text for the IRB must include weight too.**
+
+**Tests to add:** PGlite (weight needs the tick and a source; range; collectors can't set
+`weight_ok`; withdrawal), Vitest (kg parsing to 0.1, ranges), React Testing Library (tick → screen
+after height; no tick → no screen; skip; source required; summary; Finish without weight).
+
+**Phone test:** consent with the weight tick → after height, Weight: 72.4, Scale → summary shows
+"72.4 kg, scale"; consent without the tick → no weight screen; 15 kg for an adult → "unusual".
+
 ## Open questions for Ryan
 
 None. Answered by Ryan, 9 Nov 2026:

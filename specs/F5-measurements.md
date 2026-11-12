@@ -1,6 +1,6 @@
 # F5: Measurements
 
-**Status:** approved by Ryan, 9 Nov 2026 <!-- draft | approved | built | verified — only Ryan sets "approved" -->
+**Status:** approved by Ryan, 9 Nov 2026 · **Amendment C (12 Nov 2026): approved by Ryan, 12 Nov 2026; built** <!-- draft | approved | built | verified — only Ryan sets "approved" -->
 **Milestone:** M4
 **Branch:** `f5-measurements`
 **Also amends F4** (one extra consent tick, see B2).
@@ -366,6 +366,63 @@ It can't be collected later.
 
 **Tests:** parsing ft/in and cm; recomputed by the database; "doesn't know" stores null; the
 weight told + scale combination; no tick → no weight fields.
+
+## Amendment C (12 Nov 2026): age group instead of exact age, **approved by Ryan, 12 Nov 2026**
+
+Where this amendment and the text above disagree, the amendment wins once Ryan approves it.
+
+**Why (Ryan, 12 Nov):** exact age isn't needed, and collectors had to explain to people that their
+exact age wasn't being used. An age group is enough for the research, is less identifying next to
+sex, height and photos, and is quicker to ask.
+
+**Decided by Ryan (12 Nov):**
+- **Adults** are recorded by range: **18–24 · 25–34 · 35–44 · 45–54 · 55–64 · 65+**.
+- **Children stay in the study from age 8** (8–17), with a parent or guardian's consent and the
+  child's own agreement, as in F4. The sample stays 360 women, 315 men and 225 children. Reason: in
+  the Christmas season many young people come to tailors to have clothes sewn, often with a parent.
+- Collection is in **Ghana** only.
+
+**Children's ranges (decided, Ryan 12 Nov):** **8–9 · 10–12 · 13–14 · 15–17**. They follow the
+existing measurement sets (8–12 core set, 13–17 full set for their sex), so a range never straddles
+the change of set, and stay narrow enough for the typing-mistake warnings.
+
+**Screen "About the participant":** "Which age group?" with big buttons for the ranges of the
+participant's age group (adult or child, chosen at consent). No number pad. "Under 8" is not offered;
+the consent screen already says children must be 8 or older.
+
+**Warnings (decision 13):** for children, the WHO 2007 height-for-age limits use the widest limits
+across the years in the range (lowest −3 SD of the youngest year, highest +3 SD of the oldest);
+weight limits as in Amendment A by range. Adults are unchanged (one wide range).
+
+**Data:**
+- `participants.age_years` is replaced by `participants.age_range` (text, one of the ranges above,
+  must fit the age group: adult ranges for adults, child ranges for children). New migration; the
+  measurement-set rule reads the range (8–9 and 10–12 → core set; 13–14 and 15–17 → full set).
+- Existing practice rows: their exact age is converted to the range, then the column is dropped
+  (practice data only; no real participant exists).
+
+**Consent text (F4, practice and the IRB v1):** "your age group", never "your age".
+
+**Acceptance criteria:**
+- [ ] The age screen shows only the ranges for the participant's age group; no exact age is asked or
+      stored anywhere.
+- [ ] The database refuses a range that doesn't fit the age group, and a missing range before any
+      measurement.
+- [ ] The measurement set follows the range (children 8–9 / 10–12: 9 measurements; 13–14 / 15–17:
+      full set for their sex).
+- [ ] Children's height and weight warnings use the range's widest limits.
+- [ ] Old practice rows keep working after the migration.
+
+**Tests:** range lists by age group; set by range; warnings by range (Vitest); database checks and the
+conversion of old rows (PGlite); age screen buttons (React Testing Library); deny: adult range on a
+child, child range on an adult, no range.
+
+**Phone test:** adult practice participant → only the six adult ranges → measurements as before;
+child → only the four child ranges → 9 measurements for 10–12, full set for 15–17.
+
+### Open questions for Ryan (Amendment C)
+
+None. Children's ranges decided (12 Nov 2026). Approved by Ryan, 12 Nov 2026.
 
 ## Open questions for Ryan
 

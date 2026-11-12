@@ -32,7 +32,8 @@ export interface PracticeRow {
   sex?: 'female' | 'male' | null
   /** F6: front and side photos in (on the server, or done on this phone and waiting). */
   photosDone?: boolean
-  ageYears?: number | null
+  /** F5 Amendment C: age range once recorded. */
+  ageRange?: string | null
 }
 
 export interface PracticeApi {

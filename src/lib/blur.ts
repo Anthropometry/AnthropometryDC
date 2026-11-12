@@ -70,6 +70,23 @@ export function detectArea(width: number, height: number): Box {
   return clampBox({ x: GUIDE_HEAD.cx * width - size * 1.6, y: GUIDE_HEAD.cy * height - size * 1.6, w: size * 3.2, h: size * 3.2 }, width, height)
 }
 
+/**
+ * Amendment A: overlapping square tiles covering the whole frame, so the face detector also finds
+ * small faces anywhere (bystanders, a person low in the frame). Tile side = half the shorter side;
+ * tiles overlap by half, and the last row and column touch the edges.
+ */
+export function tiles(width: number, height: number): Box[] {
+  const size = Math.max(1, Math.round(Math.min(width, height) / 2))
+  const step = Math.max(1, Math.round(size / 2))
+  const starts = (len: number) => {
+    const out: number[] = []
+    for (let s = 0; s + size < len; s += step) out.push(s)
+    out.push(Math.max(0, len - size))
+    return [...new Set(out)]
+  }
+  return starts(height).flatMap((y) => starts(width).map((x) => ({ x, y, w: Math.min(size, width), h: Math.min(size, height) })))
+}
+
 /** A box found in the detect area (drawn at sx × sy detector px per frame px) → frame coordinates. */
 export function toFrame(found: Box, area: Box, sx: number, sy: number): Box {
   return { x: area.x + found.x / sx, y: area.y + found.y / sy, w: found.w / sx, h: found.h / sy }

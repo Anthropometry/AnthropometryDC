@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { KeyValueStore, Profile } from './profile'
 import { flushSettings, loadPendingSettings, saveSettings, withSettings } from './settings'
-import { describeDevice, fixFor, isTiltReading, runPhoneCheck, type CheckEnv, type StreamLike } from './phonecheck'
+import { describeDevice, fixFor, isTiltReading, runPhoneCheck, type CheckEnv, type StreamLike, supportsCameraTools, SIMD_PROBE } from './phonecheck'
 import {
   addPractice,
   flushPractice,
@@ -90,6 +90,7 @@ function env(over: Partial<CheckEnv> = {}): CheckEnv {
     hasIndexedDB: true,
     estimateStorage: async () => ({ quota: 2048 * 1_048_576 }),
     userAgent: 'Mozilla/5.0 (Linux; Android 13; TECNO KI5) Chrome/120.0 Mobile Safari/537.36',
+    validateWasm: (b) => WebAssembly.validate(b as BufferSource),
     ...over,
   }
 }
@@ -104,6 +105,7 @@ describe('F2 phone check', () => {
       cameraOk: true,
       cameraResolution: '1920x1080',
       motionOk: true,
+      photosOk: true,
       storageOk: true,
       storageMb: 2048,
       passed: true,
@@ -178,7 +180,17 @@ describe('F2 phone check', () => {
 
   it('no fix text for lines that passed', async () => {
     const r = await runPhoneCheck(env(), now)
-    expect([fixFor('camera', r), fixFor('motion', r), fixFor('storage', r)]).toEqual([null, null, null])
+    expect([fixFor('camera', r), fixFor('motion', r), fixFor('storage', r), fixFor('photos', r)]).toEqual([null, null, null, null])
+  })
+
+  it('F6 Amendment A, DENY: a browser that can’t run the camera tools (no WebAssembly SIMD) → no study photos; not passed', async () => {
+    const noSimd = await runPhoneCheck(env({ validateWasm: () => false }), now)
+    expect(noSimd).toMatchObject({ photosOk: false, passed: false })
+    expect(fixFor('photos', noSimd)).toMatch(/can’t take study photos/)
+    expect(fixFor('photos', noSimd)).toMatch(/measurements still work/)
+    expect((await runPhoneCheck(env({ validateWasm: undefined }), now)).photosOk).toBe(false)
+    expect((await runPhoneCheck(env({ validateWasm: () => { throw new Error('x') } }), now)).photosOk).toBe(false)
+    expect(supportsCameraTools((b) => b === SIMD_PROBE)).toBe(true)
   })
 })
 

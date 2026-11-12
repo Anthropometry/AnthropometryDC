@@ -80,7 +80,7 @@ export async function listMine(client: SupabaseClient, practice: boolean): Promi
     weightOk: r.weight_ok === true,
     photosDone: r.photos_done === true,
     sex: (r.sex as 'female' | 'male' | null) ?? null,
-    ageYears: (r.age_years as number | null) ?? null,
+    ageRange: (r.age_range as string | null) ?? null,
   }))
 }
 

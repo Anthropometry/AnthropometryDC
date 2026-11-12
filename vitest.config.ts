@@ -8,7 +8,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/lib/**/*.ts', 'worker/**/*.ts'],
-      exclude: ['**/*.test.ts', 'src/lib/supabase.ts'],
+      exclude: ['**/*.test.ts', '**/__fixtures__/**', 'src/lib/supabase.ts'],
       thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },
       reporter: ['text', 'json-summary'],
     },

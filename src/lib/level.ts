@@ -11,8 +11,11 @@ export interface Tilt {
   roll: number
 }
 
-/** North Anchor: pitch 90° ± 1.5°, roll ± 1° (here as deviations from upright). */
-export const LIMITS: Tilt = { pitch: 1.5, roll: 1 }
+/**
+ * F6 Amendment A (Ryan, 12 Nov): pitch ± 3°, roll ± 2° from upright, so it can be held by hand
+ * (was ± 1.5° / ± 1°). The exact angles are stored with every photo.
+ */
+export const LIMITS: Tilt = { pitch: 3, roll: 2 }
 export const STEADY_MS = 3000
 
 const deg = (r: number) => (r * 180) / Math.PI

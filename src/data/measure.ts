@@ -30,7 +30,7 @@ export function measureApi(client: SupabaseClient): MeasureApi {
     async saveAbout(participantId: string, about: About) {
       const { data, error } = await client
         .from('participants')
-        .update({ sex: about.sex, age_years: about.ageYears, clothing: about.clothing })
+        .update({ sex: about.sex, age_range: about.ageRange, clothing: about.clothing })
         .eq('id', participantId)
         .select('id')
       if (error) throw error

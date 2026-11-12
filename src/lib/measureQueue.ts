@@ -7,7 +7,7 @@
  * Everything is kept per collector, like consents.
  */
 import type { FieldDb } from './consentQueue'
-import type { Code, Sex, Unit } from './measurements'
+import { isAgeRange, rangeOf, type AgeRange, type Code, type Sex, type Unit } from './measurements'
 import type { AgeGroup } from './practice'
 
 export type Clothing = 'light' | 'medium' | 'heavy'
@@ -16,8 +16,16 @@ export type HeightMethod = 'steel_tape' | 'wall_100'
 
 export interface About {
   sex: Sex
-  ageYears: number
+  /** F5 Amendment C: the age range, never the exact age. */
+  ageRange: AgeRange
   clothing: Clothing
+}
+
+/** About saved on a phone before Amendment C held the exact age: turn it into its range. */
+export function upgradeAbout(a: (Partial<About> & { ageYears?: number }) | null | undefined): About | null {
+  if (!a || !a.sex || !a.clothing) return null
+  const ageRange = isAgeRange(a.ageRange) ? a.ageRange : typeof a.ageYears === 'number' ? rangeOf(a.ageYears) : null
+  return ageRange ? { sex: a.sex, ageRange, clothing: a.clothing } : null
 }
 
 export interface Entry {
@@ -78,14 +86,15 @@ export interface MeasureApi {
 }
 
 export async function loadDraft(db: FieldDb, participantId: string): Promise<MeasureDraft | undefined> {
-  return db.drafts.get(participantId)
+  const d = await db.drafts.get(participantId)
+  return d && d.about ? { ...d, about: upgradeAbout(d.about) } : d
 }
 
 export async function startDraft(
   db: FieldDb,
   d: Pick<MeasureDraft, 'participantId' | 'collectorId' | 'isPractice' | 'ageGroup' | 'intimateOk'> & Partial<MeasureDraft>,
 ): Promise<MeasureDraft> {
-  const existing = await db.drafts.get(d.participantId)
+  const existing = await loadDraft(db, d.participantId)
   if (existing) return existing
   const draft: MeasureDraft = { about: null, entries: {}, finishedAt: null, ...d }
   await db.drafts.put(draft)
@@ -154,7 +163,10 @@ export async function flushMeasurements(db: FieldDb, collectorId: string, api: M
   let sent = 0
   for (const op of ops) {
     try {
-      if (op.kind === 'about') await api.saveAbout(op.participantId, op.about)
+      if (op.kind === 'about') {
+        const about = upgradeAbout(op.about)
+        if (about) await api.saveAbout(op.participantId, about)
+      }
       else if (op.kind === 'entry') await api.saveEntry(op.participantId, op.entry)
       else if (op.kind === 'weight') await api.saveWeight(op.participantId, op.weight)
       else if (op.kind === 'toldHeight') await api.saveToldHeight(op.participantId, op.typed, op.unit)

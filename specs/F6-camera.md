@@ -1,6 +1,6 @@
 # F6: Camera and face blur
 
-**Status:** approved by Ryan, 11 Nov 2026 <!-- draft | approved | built | verified — only Ryan sets "approved" -->
+**Status:** approved by Ryan, 11 Nov 2026 · **Amendment A (12 Nov 2026): approved by Ryan, 12 Nov 2026; built**, see the end of this file <!-- draft | approved | built | verified — only Ryan sets "approved" -->
 **Milestone:** M5
 **Branch:** `f6-camera`
 
@@ -190,3 +190,193 @@ the outline of the top of the head visible without showing who it is.
 ## Open questions for Ryan
 
 None. All seven answered (11 Nov 2026).
+
+---
+
+## Amendment A (12 Nov 2026): find the head wherever the person stands, **approved by Ryan, 12 Nov 2026**
+
+Where this amendment and the text above disagree, the amendment wins once Ryan approves it.
+
+### Why (Ryan's phone test, 12 Nov 2026)
+
+Ryan tested PR #15 on an iPhone with 3 practice participants (7 photos downloaded and reviewed,
+9 photo rows read by Ryan; no names).
+
+- **Two photos kept an unblurred face** (one participant, front and side, zoom 1.0). The person stood
+  lower and smaller in the frame than the outline. The blur only covers the outline's head position
+  and only searches for faces around it, so the real face was outside both. The detector reported a
+  "face" in the ceiling. The review screen did not ask whether the face was hidden, so the photo was
+  kept. **This breaks POLICY §10 and blocks PR #15.**
+- **Bystanders** walking behind the participant kept visible faces (2 photos).
+- **Framing was hard:** to fit head and heels to the outline's lines the collector had to stoop very
+  low (the outline only fits with the phone at about 1 m and the body centred). Ryan ended up lining
+  up the feet and the A4 sheet instead, which is exactly when the head left the blur zone.
+- **Level lock** was hard at first and easier with practice; all saved angles were within ±1.5°.
+- **Protocol:** shoes were worn, A4 sheets were creased or folded, backgrounds were busy corridors.
+- Fine: metadata in the files is only colour space and pixel size (no place, date or camera).
+
+The cause is a design flaw, not a tuning problem: **the blur trusted the collector's framing.** The
+fix makes the blur find the person, and refuses the photo when it can't.
+
+### Changes
+
+**1. Head found by a body (pose) model, not assumed from the outline.**
+- Add the **MediaPipe pose landmarker** (same library, `@mediapipe/tasks-vision` 0.10.35; one new
+  self-hosted model file, *lite* version, about 5–6 MB, Apache-2.0). It finds people from the front,
+  side or back at 2.5–3 m, and gives points for the nose, eyes, ears, shoulders, hips, ankles and
+  heels.
+- **Head box** for every person found: centred on the head points (nose, eyes, ears, whichever
+  exist), a square of about 0.8 × the shoulder width and at least 3 × the eye-to-ear distance, from
+  above the hairline to below the chin. The exact factors are set on Ryan's test photos and fixed in
+  tests.
+- **What is blurred** (all before any file exists, as before):
+  1. the head box of **every** person the pose model finds (participant and bystanders, up to 5);
+  2. every face the face detector finds, now searched over the **whole frame** in overlapping tiles,
+     not only near the outline's head (catches small or partly hidden faces);
+  3. the fixed face zone of the outline, still always (a cheap extra layer).
+- The head-outline decision (11 Nov, decision 3) changes: the whole **head**, not only the face, is
+  blurred, because the head box can't separate face from hair reliably at this distance
+  (**decided, Ryan 12 Nov**).
+- **Head top and heels kept as numbers** (decided, Ryan 12 Nov): the photo's head-to-heel height is
+  how the model reads height, so **before** blurring, the app finds the top of the head (hair or
+  headwear included) and the lowest heel point from the pose model's body outline (its segmentation
+  mask) and stores both positions, in photo pixels, with the photo. The blurred photo then loses
+  nothing the model needs.
+
+**2. Fail-safe: no head, no photo.**
+- If the pose model finds **no person** in the frame, or the participant's head points are missing,
+  the photo is **refused**: nothing is saved and the screen says "Can't see the whole person. Make sure
+  head and feet are in the picture." The collector retakes.
+- **Slow mode** (decided, Ryan 12 Nov): on a phone too slow for the live checks (about 4 a second),
+  the app skips them, takes the still when the phone is level and steady, and runs the pose model once
+  on it (a few seconds, "Checking the photo…"). The blur is the same, fully automatic.
+- If the camera tools **can't run at all** (no WebAssembly SIMD, i.e. iPhone 7 and older or an
+  Android stuck on a pre-2021 Chrome; or out of memory), that phone **can't take photos** (decided,
+  Ryan 12 Nov). The phone check (F2) shows "This phone can't take study photos" so it is found before
+  collection; consent and measurements still work. No older or larger build and no manual marking.
+- **Download weight** (Ryan 12 Nov: collectors use their own phones, so nothing heavy): the camera
+  tools (runtime about 11 MB, face model 0.2 MB, pose model about 5.5 MB; about 18 MB in all) are
+  **no longer downloaded at install**. They download **once, the first time the collector opens the
+  camera**, with a short progress message: "Getting the camera ready (one time, about 18 MB)." It
+  needs a mobile-data signal that first time only (most collectors have no Wi-Fi, Ryan 12 Nov; no
+  Wi-Fi advice is shown). Then they stay on the phone and work offline. The rest of the app stays small.
+
+**3. The review asks about the face.**
+- New first question: **"Is the face completely hidden?"** Yes / No. **No discards the photo** and goes
+  back to the camera (the photo is never queued).
+- The other two stay: whole body visible; A4 visible and flat. All three must be Yes to **Use photo**.
+- Stored: `face_hidden_confirmed` (always true on a saved photo).
+
+**4. Easier framing: the app checks the body, not the outline.**
+- The outline stays as a picture of the pose, but the person no longer has to fit its lines.
+- About 4 times a second the pose model checks the live view. The auto-shutter needs **all** of:
+  - the phone level (see 5);
+  - the participant's **head and both heels inside the frame**, with a small margin;
+  - the participant at least **55% of the frame height** (enough pixels for the model);
+  - only **one person** in the frame (**decided, Ryan 12 Nov**: the shutter waits for bystanders);
+  - steady for 3 seconds (as before).
+- Plain hints instead of lines: "Zoom out" / "Step back" (head or feet cut off), "Zoom in" (person
+  too small), "Wait until nobody is behind the person".
+- **Phone height:** the set-up card says **kneel on one knee** (phone at about 1 m) instead of
+  stooping, or rest the phone on a stand or stool. Holding it higher is allowed; the app still checks
+  that the whole body is in the frame (**decided, Ryan 12 Nov: kneel on one knee**).
+
+**5. Level limits.** Loosen from pitch ±1.5° / roll ±1° to **pitch ±3° / roll ±2°**; the exact
+angles are stored with each photo as now, so the model can correct for them (**decided, Ryan
+12 Nov**).
+
+**6. Set-up card and training.**
+- Shoes **off** (as in F5's height protocol): "Remove shoes" on the card.
+- **A4 sheet flat and uncreased**: keep it in a folder; replace it when creased.
+- **Plain wall, nobody behind the person**; if people pass, wait.
+- A short **tutorial video** for collectors who can't be trained in person: script and shot list
+  written after this amendment is built and stable (Ryan records it). Not part of the app.
+
+**7. Existing practice photos.** All practice photos taken before this amendment are deleted (Ryan:
+delete those practice participants in the app, or their `practice/` folders in R2). Real collection
+hasn't started, so no real photo is affected.
+
+### Data written (changes)
+
+| Where | Change |
+| --- | --- |
+| Supabase `photos` (new migration) | `people_detected` (0–20, from the pose model), `face_hidden_confirmed` (boolean, must be true), `blur_version` (2 for this amendment; rows from before are version 1), `head_top_y` and `heel_y` (photo pixels, measured before blurring; within the photo's height, head above heels) |
+| `public/models/` | the pose landmarker *lite* model file (self-hosted; SHA-256 recorded in DISCUSSION.md) |
+| Phone (service-worker cache) | camera tools (about 18 MB) cached on first camera use instead of at install; the install itself shrinks by about 12 MB |
+
+No image, no name, as before.
+
+### Acceptance criteria (testable)
+
+- [ ] A face is blurred wherever the person stands in the frame: top, middle, bottom, left, right,
+      small (zoom 1.0) or large.
+- [ ] A bystander's head is blurred too.
+- [ ] No person found → no photo, nothing queued, the "Can't see the whole person" message.
+- [ ] Pose model unavailable → photos can't be taken; the phone check says so.
+- [ ] A slow phone uses slow mode and still blurs every head automatically.
+- [ ] Installing the app does not download the camera tools; the first camera use does, with the
+      "Getting the camera ready" message, and the camera then works in airplane mode. If there is no
+      signal that first time: "The camera needs signal once to get ready. Try again when you have
+      signal." (measurements are not affected).
+- [ ] "Is the face completely hidden?" No → the photo is discarded, never queued.
+- [ ] The shutter waits for head and heels in the frame, the person big enough, one person, level,
+      and 3 seconds steady; the right hint shows for each problem.
+- [ ] Level limits pitch ±3° / roll ±2°.
+- [ ] `photos` refuses `face_hidden_confirmed = false`, a missing `blur_version`, and head-top / heel
+      positions outside the photo or in the wrong order.
+- [ ] Head-top and heel positions are measured before the blur and match the person in the photo
+      (checked on Ryan's test photos within about 1% of the photo height).
+- [ ] Ryan's **20 new test photos**: person low and high in the frame, zoom 1.0 and 2.0, a bystander
+      behind, back view, side view, headwrap, glasses, dim light, a child-height person → **no
+      recognisable face in any**, bystanders included.
+
+### Security requirements (additions)
+
+- The blur still can't be switched off, and the only way to a saved photo is still `capture()`.
+- **Fail closed:** any error in the pose model or the face detector → no photo. (Today a detector
+  error falls back to the fixed zone only; that fallback is removed.)
+- Model files self-hosted; no request to Google at run time.
+- Deny cases tested: no person; pose model error; face-hidden answer No; two people (shutter waits);
+  head outside the frame (shutter waits); an unblurred frame reaching the queue (still impossible).
+
+### Tests to write
+
+| Test | Tool | Allow or deny |
+| --- | --- | --- |
+| Head box from pose points: front, side, back (ears only), small and large person, clamped to the frame | Vitest | both |
+| Head top and heels from the body outline (mask): hair and headwrap included, measured before the blur | Vitest | both |
+| Capture order: draw → pose + tiled faces → blur every head and face + fixed zone → JPEG → cleared | Vitest (+ canvas mock) | both |
+| No person / pose model error → refused, nothing returned | Vitest | deny |
+| Framing check: head or heels out, too small, two people, level → the right hint; shutter only when all pass | Vitest | both |
+| Review: face-hidden No discards; all three Yes needed | React Testing Library | both |
+| Phone check: pose model missing → "can't take study photos" | React Testing Library | deny |
+| `photos`: new columns and checks | PGlite | both |
+| 20 new test photos, bystanders included | Manual, Ryan | — |
+
+### Phone test script (amendment)
+
+1. Delete the old practice participants that have photos.
+2. New practice participant → consent → measurements → Take photos → the set-up card says kneel,
+   shoes off, flat A4, nobody behind.
+3. Kneel on one knee about 2.5–3 m away. Zoom out until the hint says the whole person is in.
+4. Ask someone to walk behind → "Wait until nobody is behind the person"; the shutter waits.
+5. Hold level → 3, 2, 1 → review: **the whole head is blurred** → three questions → Use photo.
+6. Retake once and answer **No** to "Is the face completely hidden?" → back to the camera, nothing
+   saved.
+7. Point the camera at an empty wall → no countdown; the hint asks for the whole person.
+8. Side and back photos the same way → Complete.
+9. Ryan: the 20 test photos above.
+
+### Decided (Ryan, 12 Nov 2026)
+
+1. **Blur the whole head**, and store the head-top and heel positions measured before the blur.
+2. **Weak phones:** slow mode first; a phone that can't run the camera tools at all takes no photos
+   (consent and measurements still work). No extra build, no manual marking. Camera tools
+   (about 18 MB) download once on first camera use, not at install.
+3. **Kneel on one knee** to hold the phone at about 1 m.
+4. **Level limits pitch ±3° / roll ±2°**, exact angles stored.
+5. **Bystanders:** the shutter waits while a second person is in the frame.
+
+### Open questions for Ryan
+
+None. All five answered (12 Nov 2026). Approved by Ryan, 12 Nov 2026.

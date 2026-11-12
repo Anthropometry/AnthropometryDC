@@ -44,6 +44,11 @@ function photo(who: string, participantId: string, slot: string, over: Record<st
     level_roll: -0.2,
     phone_model: 'TECNO KI5',
     a4_confirmed: true,
+    blur_version: 2,
+    people_detected: 1,
+    face_hidden_confirmed: true,
+    head_top_y: 40,
+    heel_y: 1550,
     ...over,
   }
   const cols = Object.keys(row)
@@ -61,6 +66,34 @@ beforeEach(async () => {
        ('${B}', '+233242222222', 'collector', 'approved', 'Kofi'),
        ('${ADMIN}', '+233243333333', 'admin', 'approved', 'Lead')`,
   )
+})
+
+describe('F6 Amendment A: photo checks', () => {
+  it('ALLOW: a version-2 photo with people found, face hidden, head top above the heels', async () => {
+    const p = await participant(A, { measured: true })
+    await photo(A, p, 'front')
+    const { rows } = await as<{ blur_version: number; head_top_y: number; heel_y: number }>(A, `select blur_version, head_top_y, heel_y from public.photos where participant_id = $1`, [p])
+    expect(rows[0]).toEqual({ blur_version: 2, head_top_y: 40, heel_y: 1550 })
+  })
+
+  it('DENY: the old blur (version 1), face-hidden No or missing, no person, head and heels missing or wrong', async () => {
+    const p = await participant(A, { measured: true })
+    await expect(photo(A, p, 'front', { blur_version: 1 })).rejects.toThrow(/update the app/)
+    await expect(photo(A, p, 'front', { face_hidden_confirmed: false })).rejects.toThrow(/photos_v2_complete/)
+    await expect(photo(A, p, 'front', { face_hidden_confirmed: null })).rejects.toThrow(/photos_v2_complete/)
+    await expect(photo(A, p, 'front', { people_detected: 0 })).rejects.toThrow(/photos_v2_complete/)
+    await expect(photo(A, p, 'front', { head_top_y: null })).rejects.toThrow(/photos_v2_complete/)
+    await expect(photo(A, p, 'front', { head_top_y: 1600, heel_y: 1500 })).rejects.toThrow(/photos_v2_complete/)
+    await expect(photo(A, p, 'front', { heel_y: 1600 })).rejects.toThrow(/photos_v2_complete/)
+    await expect(photo(A, p, 'front', { people_detected: 21 })).rejects.toThrow(/people_detected/)
+  })
+
+  it('DENY: a retake cannot switch back to the old blur; ALLOW a version-2 retake', async () => {
+    const p = await participant(A, { measured: true })
+    await photo(A, p, 'side')
+    await expect(as(A, `update public.photos set blur_version = 1 where participant_id = $1`, [p])).rejects.toThrow(/update the app/)
+    await as(A, `update public.photos set head_top_y = 50, heel_y = 1500, people_detected = 1 where participant_id = $1`, [p])
+  })
 })
 
 describe('F5 Amendment B: stated height and weight', () => {

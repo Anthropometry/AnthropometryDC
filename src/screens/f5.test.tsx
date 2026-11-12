@@ -6,7 +6,7 @@ import { MeasureFlow, type MeasureStore } from './Measure'
 import { ConsentFlow } from './Consent'
 import { PracticeList, stateOf } from './Practice'
 import { consentText } from '../lib/consentText'
-import { DEF, setFor, type Code } from '../lib/measurements'
+import { DEF, setFor, type AgeRange, type Code } from '../lib/measurements'
 import type { Entry, MeasureDraft } from '../lib/measureQueue'
 import type { ConsentJob } from '../lib/consentQueue'
 import type { PadProps } from '../components/SignaturePad'
@@ -46,7 +46,7 @@ function fakeStore() {
 const press = (...keys: string[]) =>
   keys.forEach((k) => fireEvent.click(screen.getByRole('button', { name: k === '.' ? 'Decimal point' : k })))
 const btn = (name: string | RegExp) => screen.getByRole('button', { name }) as HTMLButtonElement
-const female30 = { sex: 'female' as const, ageYears: 30, clothing: 'light' as const }
+const female30 = { sex: 'female' as const, ageRange: '25-34' as const, clothing: 'light' as const }
 
 function startAt(code: Code, over: Partial<MeasureDraft> = {}, unit: 'cm' | 'in' = 'cm') {
   const s = fakeStore()
@@ -64,7 +64,7 @@ function startAt(code: Code, over: Partial<MeasureDraft> = {}, unit: 'cm' | 'in'
 }
 
 /** Every code before `code` already saved, so the flow can jump straight to it. */
-function savedBefore(code: Code, sex: 'female' | 'male' = 'female', age = 30): Partial<Record<Code, Entry>> {
+function savedBefore(code: Code, sex: 'female' | 'male' = 'female', age: AgeRange = '25-34'): Partial<Record<Code, Entry>> {
   const out: Partial<Record<Code, Entry>> = {}
   for (const c of setFor(sex, age)) {
     if (c === code) break
@@ -74,28 +74,36 @@ function savedBefore(code: Code, sex: 'female' | 'male' = 'female', age = 30): P
 }
 
 describe('About the participant', () => {
-  it('needs sex, a fitting age and clothing; saves and moves on', async () => {
+  it('needs sex, an age group and clothing; only adult groups for an adult; no exact age asked', async () => {
     const { store } = fakeStore()
     render(<MeasureFlow draft={draft()} unit="cm" store={store} onDone={vi.fn()} onBack={vi.fn()} />)
     expect(btn('Next').disabled).toBe(true)
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(screen.queryByRole('button', { name: '15–17' })).toBeNull()
+    for (const r of ['18–24', '25–34', '35–44', '45–54', '55–64', '65+']) btn(r)
     fireEvent.click(btn('Female'))
-    fireEvent.change(screen.getByLabelText('Age in years (18 or older)'), { target: { value: '17' } })
     fireEvent.click(btn('Light'))
-    expect(btn('Next').disabled).toBe(true) // 17 is not an adult
-    fireEvent.change(screen.getByLabelText('Age in years (18 or older)'), { target: { value: '30' } })
+    expect(btn('Next').disabled).toBe(true) // no age group yet
+    fireEvent.click(btn('25–34'))
     fireEvent.click(btn('Next'))
     await waitFor(() => screen.getByText('Before you start'))
     expect(store.about).toHaveBeenCalledWith(expect.anything(), female30)
     screen.getByText(/24 measurements/)
   })
 
-  it('a child under 8 is not measured', () => {
-    render(<MeasureFlow draft={draft({ ageGroup: 'child' })} unit="cm" store={fakeStore().store} onDone={vi.fn()} onBack={vi.fn()} />)
-    fireEvent.change(screen.getByLabelText('Age in years (8 to 17)'), { target: { value: '7' } })
-    screen.getByText(/Children under 8 are not measured/)
+  it('a child gets only the children’s groups (none under 8); 10–12 gets the core set', async () => {
+    const { store } = fakeStore()
+    render(<MeasureFlow draft={draft({ ageGroup: 'child' })} unit="cm" store={store} onDone={vi.fn()} onBack={vi.fn()} />)
+    for (const r of ['8–9', '10–12', '13–14', '15–17']) btn(r)
+    expect(screen.queryByRole('button', { name: '25–34' })).toBeNull()
+    screen.getByText(/Children under 8 do not take part/)
     fireEvent.click(btn('Male'))
     fireEvent.click(btn('Light'))
-    expect(btn('Next').disabled).toBe(true)
+    fireEvent.click(btn('10–12'))
+    fireEvent.click(btn('Next'))
+    await waitFor(() => screen.getByText('Before you start'))
+    expect(store.about).toHaveBeenCalledWith(expect.anything(), { sex: 'male', ageRange: '10-12', clothing: 'light' })
+    screen.getByText(/9 measurements/)
   })
 })
 
@@ -201,21 +209,21 @@ describe('Intimate measurements without the tick', () => {
 
 describe('Summary and Finish', () => {
   it('Finish only when every measurement is taken or skipped', async () => {
-    const all = savedBefore('height', 'male', 9)
-    for (const c of setFor('male', 9)) all[c] = { code: c, unit: 'cm', readingsTyped: c === 'height' ? ['130', '130.2'] : ['30'], skipped: false, skipReason: null, skipNote: null, confirmedUnusual: false, heightMethod: c === 'height' ? 'steel_tape' : null, hairAddsHeight: null, measuredAt: '' }
+    const all = savedBefore('height', 'male', '8-9')
+    for (const c of setFor('male', '8-9')) all[c] = { code: c, unit: 'cm', readingsTyped: c === 'height' ? ['130', '130.2'] : ['30'], skipped: false, skipReason: null, skipNote: null, confirmedUnusual: false, heightMethod: c === 'height' ? 'steel_tape' : null, hairAddsHeight: null, measuredAt: '' }
     for (const dbl of ['chest_girth', 'waist_girth', 'hip_girth'] as Code[]) all[dbl]!.readingsTyped = ['60', '60.2']
     const missing = { ...all }
     delete missing.inseam
     const s = fakeStore()
     const onDone = vi.fn()
     const { unmount } = render(
-      <MeasureFlow draft={draft({ ageGroup: 'child', about: { sex: 'male', ageYears: 9, clothing: 'light' }, entries: missing })} unit="cm" store={s.store} onDone={onDone} onBack={vi.fn()} />,
+      <MeasureFlow draft={draft({ ageGroup: 'child', about: { sex: 'male', ageRange: '8-9', clothing: 'light' }, entries: missing })} unit="cm" store={s.store} onDone={onDone} onBack={vi.fn()} />,
     )
     screen.getByText('Summary')
     expect(btn('Finish').disabled).toBe(true)
     screen.getByText('not yet')
     unmount()
-    render(<MeasureFlow draft={draft({ ageGroup: 'child', about: { sex: 'male', ageYears: 9, clothing: 'light' }, entries: all })} unit="cm" store={s.store} onDone={onDone} onBack={vi.fn()} />)
+    render(<MeasureFlow draft={draft({ ageGroup: 'child', about: { sex: 'male', ageRange: '8-9', clothing: 'light' }, entries: all })} unit="cm" store={s.store} onDone={onDone} onBack={vi.fn()} />)
     screen.getByText('130.1 cm')
     fireEvent.click(btn('Finish'))
     await waitFor(() => expect(onDone).toHaveBeenCalled())

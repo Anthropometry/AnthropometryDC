@@ -12,7 +12,7 @@ import type { PadProps } from '../components/SignaturePad'
 
 afterEach(cleanup)
 
-const female30 = { sex: 'female' as const, ageYears: 30, clothing: 'light' as const }
+const female30 = { sex: 'female' as const, ageRange: '25-34' as const, clothing: 'light' as const }
 const draft = (over: Partial<MeasureDraft> = {}): MeasureDraft => ({
   participantId: 'p1',
   collectorId: 'me',
@@ -66,11 +66,11 @@ async function measureHeight() {
 
 describe('weight logic', () => {
   it('ranges by age; outside asks to check', () => {
-    expect(weightRange(30)).toEqual([30, 200])
-    expect(weightRange(15)).toEqual([30, 150])
-    expect(weightRange(10)).toEqual([18, 80])
-    expect(unusualWeight(724, 30)).toBeNull()
-    expect(unusualWeight(150, 30)).toEqual([30, 200])
+    expect(weightRange('25-34')).toEqual([30, 200])
+    expect(weightRange('15-17')).toEqual([30, 150])
+    expect(weightRange('10-12')).toEqual([18, 80])
+    expect(unusualWeight(724, '25-34')).toBeNull()
+    expect(unusualWeight(150, '25-34')).toEqual([30, 200])
   })
 })
 
@@ -193,12 +193,12 @@ describe('weight (only with the consent tick): asked first, then the scale', () 
 describe('summary', () => {
   it('shows the weight row; Finish does not wait for weight', async () => {
     const all: Partial<Record<Code, Entry>> = {}
-    for (const c of setFor('male', 9))
+    for (const c of setFor('male', '8-9'))
       all[c] = { code: c, unit: null, readingsTyped: [], skipped: true, skipReason: 'other', skipNote: 'x', confirmedUnusual: false, heightMethod: null, hairAddsHeight: null, measuredAt: '' }
     const onDone = vi.fn()
     render(
       <MeasureFlow
-        draft={draft({ ageGroup: 'child', about: { sex: 'male', ageYears: 9, clothing: 'light' }, entries: all })}
+        draft={draft({ ageGroup: 'child', about: { sex: 'male', ageRange: '8-9', clothing: 'light' }, entries: all })}
         unit="cm"
         store={fakeStore().store}
         onDone={onDone}
@@ -218,9 +218,9 @@ describe('summary', () => {
 
   it('shows the stated height and the stated weight next to the scale value', () => {
     const all: Partial<Record<Code, Entry>> = {}
-    for (const c of setFor('male', 9))
+    for (const c of setFor('male', '8-9'))
       all[c] = { code: c, unit: null, readingsTyped: [], skipped: true, skipReason: 'other', skipNote: 'x', confirmedUnusual: false, heightMethod: null, hairAddsHeight: null, measuredAt: '' }
-    const d = draft({ ageGroup: 'child', about: { sex: 'male', ageYears: 9, clothing: 'light' }, entries: all })
+    const d = draft({ ageGroup: 'child', about: { sex: 'male', ageRange: '8-9', clothing: 'light' }, entries: all })
     render(<MeasureFlow draft={{ ...d, toldHeight: { typed: '5 7 1/2', unit: 'ftin' }, weightToldKg: 70, weight: { kg: 72.4, source: 'scale', confirmedUnusual: false } }} unit="cm" store={fakeStore().store} onDone={vi.fn()} onBack={vi.fn()} />)
     screen.getByText('171.5 cm (said 5 7 1/2)')
     screen.getByText('72.4 kg, scale · said 70.0')

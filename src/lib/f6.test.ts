@@ -2,13 +2,29 @@
 /** F6 logic: level lock, steady timer, blur geometry and mosaic, capture order, stated height. */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LIMITS, createSteadyTimer, isLevel, levelHint, tiltFromGravity, tiltFromOrientation } from './level'
-import { boxesToBlur, detectArea, enlarge, faceZone, frameRect, mosaic, toFrame, type Pixels } from './blur'
-import { capture, isBlurred } from './capture'
+import { boxesToBlur, detectArea, enlarge, faceZone, frameRect, mosaic, tiles, toFrame, type Pixels } from './blur'
+import { capture, CaptureRefused, isBlurred, type CameraTools, type PoseResult } from './capture'
+import { person } from './__fixtures__/people'
+import type { Person } from './pose'
 import { ftinTyped, toldHeightTenths } from './measurements'
 
 afterEach(() => vi.restoreAllMocks())
 
-describe('level lock (pitch 90° ± 1.5°, roll ± 1°)', () => {
+/** Fake camera tools: the given people; every face search returns `faces` (per tile). */
+function tools(people: Person[], faces: { x: number; y: number; w: number; h: number }[] = [], calls?: string[]): CameraTools {
+  return {
+    pose: async (): Promise<PoseResult> => {
+      calls?.push('pose')
+      return { people, masks: people.map(() => null) }
+    },
+    faces: async () => {
+      calls?.push('faces')
+      return faces
+    },
+  }
+}
+
+describe('level lock (Amendment A: pitch ± 3°, roll ± 2°)', () => {
   it('from gravity: upright is level on Android and iPhone (opposite signs)', () => {
     expect(isLevel(tiltFromGravity({ x: 0, y: 9.81, z: 0 }))).toBe(true)
     expect(isLevel(tiltFromGravity({ x: 0, y: -9.81, z: 0 }))).toBe(true)
@@ -28,24 +44,25 @@ describe('level lock (pitch 90° ± 1.5°, roll ± 1°)', () => {
     expect(tiltFromGravity({ x: a(3), y: -b(3), z: 0 })!.roll).toBeCloseTo(3, 5)
   })
 
-  it('from gravity: 2° forward or 1.5° sideways is not level; flat is unknown', () => {
-    const z = 9.81 * Math.sin((2 * Math.PI) / 180)
-    expect(isLevel(tiltFromGravity({ x: 0, y: 9.8, z }))).toBe(false)
-    const x = 9.81 * Math.sin((1.5 * Math.PI) / 180)
-    expect(isLevel(tiltFromGravity({ x, y: 9.8, z: 0 }))).toBe(false)
+  it('from gravity: 3.5° forward or 2.5° sideways is not level; 2.5° / 1.5° is; flat is unknown', () => {
+    const s = (d: number) => 9.81 * Math.sin((d * Math.PI) / 180)
+    expect(isLevel(tiltFromGravity({ x: 0, y: 9.8, z: s(3.5) }))).toBe(false)
+    expect(isLevel(tiltFromGravity({ x: s(2.5), y: 9.8, z: 0 }))).toBe(false)
+    expect(isLevel(tiltFromGravity({ x: s(1.5), y: 9.8, z: s(2.5) }))).toBe(true)
     expect(tiltFromGravity({ x: 0, y: 0.2, z: 9.8 })).toBeNull()
     expect(tiltFromGravity({ x: NaN, y: 9, z: 0 })).toBeNull()
   })
 
   it('from orientation angles; limits and hints', () => {
     expect(isLevel(tiltFromOrientation(90.5, -0.5))).toBe(true)
-    expect(isLevel(tiltFromOrientation(92, 0))).toBe(false)
+    expect(isLevel(tiltFromOrientation(92.9, 1.9))).toBe(true)
+    expect(isLevel(tiltFromOrientation(93.5, 0))).toBe(false)
     expect(tiltFromOrientation(null, 0)).toBeNull()
-    expect(LIMITS).toEqual({ pitch: 1.5, roll: 1 })
+    expect(LIMITS).toEqual({ pitch: 3, roll: 2 })
     expect(levelHint(null)).toMatch(/upright/)
-    expect(levelHint({ pitch: 3, roll: 0 })).toMatch(/away from you/)
-    expect(levelHint({ pitch: -3, roll: 0 })).toMatch(/towards you/)
-    expect(levelHint({ pitch: 0, roll: 2 })).toMatch(/sideways/)
+    expect(levelHint({ pitch: 4, roll: 0 })).toMatch(/away from you/)
+    expect(levelHint({ pitch: -4, roll: 0 })).toMatch(/towards you/)
+    expect(levelHint({ pitch: 0, roll: 3 })).toMatch(/sideways/)
     expect(levelHint({ pitch: 0, roll: 0 })).toMatch(/Hold still/)
   })
 })
@@ -89,7 +106,7 @@ describe('photo frame: 3:4, digital zoom', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (cb: BlobCallback) {
       cb(new Blob([new Uint8Array([0xff, 0xd8, 0xff])]))
     })
-    const p = await capture({} as CanvasImageSource, 1080, 1920, null, 2)
+    const p = await capture({} as CanvasImageSource, 1080, 1920, tools([person({ w: 540, h: 720, cx: 270, top: 40, bottom: 690 })]), 2)
     expect(draws[0].slice(1)).toEqual([270, 600, 540, 720, 0, 0, 540, 720])
     expect(p).toMatchObject({ width: 540, height: 720 })
   })
@@ -140,16 +157,26 @@ describe('blur geometry', () => {
   })
 })
 
-describe('capture: blur before any file exists', () => {
+describe('capture (Amendment A): find every head, refuse when unsure, blur before any file exists', () => {
+  const W = 1200
+  const H = 1600
+
+  /** Image data that changes from pixel to pixel, so a mosaic block is visible. */
   function fakeCanvas() {
     const calls: string[] = []
+    let blurred: Uint8ClampedArray | null = null
     const ctx = {
       drawImage: vi.fn(() => calls.push('draw')),
       getImageData: vi.fn((_x: number, _y: number, w: number, h: number) => {
         calls.push('read')
-        return { data: new Uint8ClampedArray(w * h * 4).fill(200), width: w, height: h }
+        const data = new Uint8ClampedArray(w * h * 4)
+        for (let i = 0; i < w * h; i++) data[i * 4] = (i * 37) % 251
+        return { data, width: w, height: h }
       }),
-      putImageData: vi.fn(() => calls.push('blurred')),
+      putImageData: vi.fn((img: { data: Uint8ClampedArray }) => {
+        calls.push('blurred')
+        blurred = img.data
+      }),
       clearRect: vi.fn(() => calls.push('cleared')),
     }
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx as unknown as CanvasRenderingContext2D)
@@ -157,40 +184,105 @@ describe('capture: blur before any file exists', () => {
       calls.push('jpeg')
       cb(new Blob([new Uint8Array([0xff, 0xd8, 0xff, 1, 2])]))
     })
-    return { calls, ctx }
+    /** Is the pixel at (x, y) the same as its right neighbour (inside a mosaic block)? */
+    const flat = (x: number, y: number) => {
+      const d = blurred!
+      return d[(y * W + x) * 4] === d[(y * W + x + 1) * 4]
+    }
+    return { calls, flat }
   }
 
-  it('order: draw → detect → blur → JPEG → cleared; the result counts as blurred', async () => {
-    const { calls, ctx } = fakeCanvas()
-    const detect = vi.fn(async () => {
-      calls.push('detect')
-      return [{ x: 100, y: 80, w: 60, h: 70 }]
-    })
-    const photo = await capture({} as CanvasImageSource, 3000, 4000, detect)
-    // frame drawn, head area copied for the detector, faces found, blurred, then the only JPEG, then cleared
-    expect(calls).toEqual(['draw', 'draw', 'detect', 'read', 'blurred', 'jpeg', 'cleared'])
-    expect(photo).toMatchObject({ width: 1200, height: 1600, facesDetected: 1, bytes: 5 })
+  const participant = (top = 100, bottom = 1500, cx = 600) => person({ w: W, h: H, cx, top, bottom })
+
+  it('order: draw → people → faces everywhere → blur → JPEG → cleared; marks and counts kept', async () => {
+    const { calls } = fakeCanvas()
+    const t = tools([participant()], [{ x: 10, y: 10, w: 30, h: 30 }], calls)
+    const photo = await capture({} as CanvasImageSource, 3000, 4000, t)
+    expect(calls.indexOf('pose')).toBe(1) // right after the frame is drawn
+    expect(calls.filter((c) => c === 'faces').length).toBe(tiles(W, H).length) // every tile searched
+    expect(calls.slice(-4)).toEqual(['read', 'blurred', 'jpeg', 'cleared'])
+    expect(calls.indexOf('jpeg')).toBeGreaterThan(calls.lastIndexOf('faces'))
+    expect(photo).toMatchObject({ width: W, height: H, peopleDetected: 1, blurVersion: 2, bytes: 5 })
+    expect(photo.facesDetected).toBe(tiles(W, H).length) // the fake finds one per tile
+    expect(photo.headTopY).toBeLessThan(120)
+    expect(photo.heelY).toBe(1500)
     expect(isBlurred(photo)).toBe(true)
-    expect(ctx.putImageData).toHaveBeenCalledTimes(1)
   })
 
-  it('without a detector (failed to load), the face zone is still blurred before the JPEG', async () => {
-    const { calls } = fakeCanvas()
-    const photo = await capture({} as CanvasImageSource, 1200, 1600, null)
-    expect(calls).toEqual(['draw', 'read', 'blurred', 'jpeg', 'cleared'])
-    expect(photo.facesDetected).toBe(0)
+  it('the 12 Nov failure: a person low in the frame has their face blurred (not just the outline zone)', async () => {
+    const { flat } = fakeCanvas()
+    // Big enough (60% of the height) but standing low: face at about y = 640, far below the fixed zone.
+    const low = participant(560, 1560, 650)
+    await capture({} as CanvasImageSource, W, H, tools([low]))
+    const eyes = 560 + 0.065 * 1000
+    expect(flat(650, Math.round(eyes))).toBe(true) // face mosaicked
+    expect(flat(650, Math.round(560 + 0.1 * 1000))).toBe(true) // mouth and chin
+    expect(flat(650, 1200)).toBe(false) // the body (legs) untouched
+    const z = faceZone(W, H)
+    expect(eyes).toBeGreaterThan(z.y + z.h) // the old fixed zone alone would have missed it
   })
 
-  it('a detector error does not stop the blur', async () => {
+  it('the head is blurred from the side and from the back too', async () => {
+    for (const view of ['side', 'back'] as const) {
+      const { flat } = fakeCanvas()
+      const p = person({ w: W, h: H, cx: 600, top: 300, bottom: 1500, view })
+      await capture({} as CanvasImageSource, W, H, tools([p]))
+      expect(flat(600, Math.round(300 + 0.065 * 1200))).toBe(true)
+      vi.restoreAllMocks()
+    }
+  })
+
+  it('DENY: nobody found → no photo, no JPEG, canvas cleared', async () => {
     const { calls } = fakeCanvas()
-    await capture({} as CanvasImageSource, 1200, 1600, async () => Promise.reject(new Error('x')))
-    expect(calls.slice(-3)).toEqual(['blurred', 'jpeg', 'cleared'])
+    await expect(capture({} as CanvasImageSource, W, H, tools([]))).rejects.toMatchObject({ reason: 'no_person' })
+    expect(calls).not.toContain('jpeg')
+    expect(calls.at(-1)).toBe('cleared')
+  })
+
+  it('DENY: someone behind the participant, head or feet cut off, or too small → no photo', async () => {
+    fakeCanvas()
+    const bystander = person({ w: W, h: H, cx: 1000, top: 600, bottom: 1000 })
+    await expect(capture({} as CanvasImageSource, W, H, tools([participant(), bystander]))).rejects.toMatchObject({ reason: 'other_people' })
+    await expect(capture({} as CanvasImageSource, W, H, tools([participant(-80, 1500)]))).rejects.toMatchObject({ reason: 'not_whole' })
+    await expect(capture({} as CanvasImageSource, W, H, tools([participant(700, 1300)]))).rejects.toMatchObject({ reason: 'too_small' })
+  })
+
+  it('DENY (fail closed): no camera tools, or an error in the pose model or the face detector → no photo', async () => {
+    const { calls } = fakeCanvas()
+    await expect(capture({} as CanvasImageSource, W, H, null)).rejects.toBeInstanceOf(CaptureRefused)
+    await expect(capture({} as CanvasImageSource, W, H, null)).rejects.toMatchObject({ reason: 'no_tools' })
+    const broken: CameraTools = { pose: async () => Promise.reject(new Error('x')), faces: async () => [] }
+    await expect(capture({} as CanvasImageSource, W, H, broken)).rejects.toMatchObject({ reason: 'tools_failed' })
+    const noFaces: CameraTools = { ...tools([participant()]), faces: async () => Promise.reject(new Error('x')) }
+    await expect(capture({} as CanvasImageSource, W, H, noFaces)).rejects.toMatchObject({ reason: 'tools_failed' })
+    expect(calls).not.toContain('jpeg')
+  })
+
+  it('faces the detector finds anywhere (e.g. a bystander far behind) are blurred too', async () => {
+    const { flat } = fakeCanvas()
+    // In the tile at (600, 1000), a face at 20–60 detector px → about 647–741, 1047–1141 in the photo.
+    await capture({} as CanvasImageSource, W, H, tools([participant()], [{ x: 20, y: 20, w: 40, h: 40 }]))
+    expect(flat(694, 1094)).toBe(true)
   })
 
   it('DENY: anything not made by capture is not "blurred" (so it can never be queued)', () => {
     expect(isBlurred({ jpeg: new Uint8Array([1]), width: 1, height: 1, bytes: 1, facesDetected: 0 })).toBe(false)
     expect(isBlurred(null)).toBe(false)
     expect(isBlurred('photo')).toBe(false)
+  })
+})
+
+describe('face search everywhere: overlapping tiles', () => {
+  it('cover the whole frame, overlap by half, and stay inside it', () => {
+    const t = tiles(1200, 1600)
+    for (const b of t) {
+      expect(b.x + b.w).toBeLessThanOrEqual(1200)
+      expect(b.y + b.h).toBeLessThanOrEqual(1600)
+    }
+    for (const [x, y] of [[0, 0], [1199, 1599], [600, 800], [1199, 0], [0, 1599]]) {
+      expect(t.some((b) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h)).toBe(true)
+    }
+    expect(t[1].x - t[0].x).toBe(t[0].w / 2)
   })
 })
 

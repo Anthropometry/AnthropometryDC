@@ -150,6 +150,7 @@ const result = (over: Partial<PhoneCheckResult> = {}): PhoneCheckResult => ({
   cameraResolution: '1920x1080',
   cameraProblem: null,
   motionOk: true,
+  photosOk: true,
   storageOk: true,
   storageMb: 2048,
   passed: true,

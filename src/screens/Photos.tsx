@@ -1,15 +1,19 @@
 /**
- * F6 camera screens (specs/F6-camera.md): set-up card → for each pose, the live back camera with the
- * pose outline, the level lock and the 3-second auto-shutter → review of the BLURRED photo only →
- * Use photo / Retake. Front and side are required; the back photo can be skipped.
- * Nothing from the live view is kept: env.grab() blurs inside the capture function before a JPEG
- * exists, and only that blurred photo is shown and saved.
+ * F6 camera screens (specs/F6-camera.md with Amendment A): set-up card → the one-time camera tools
+ * download → for each pose, the live back camera with the pose outline, the body check (whole person
+ * in, big enough, alone), the level lock and the 3-second auto-shutter → review of the BLURRED photo
+ * only: "Is the face completely hidden?" (No discards it), whole body, A4 → Use photo / Retake.
+ * Front and side are required; the back photo can be skipped.
+ * Nothing from the live view is kept: env.grab() checks and blurs inside the capture function before
+ * a JPEG exists, and only that blurred photo is shown and saved.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, Choice, ErrorText, Page, Title } from '../components/ui'
 import { PoseGuide } from '../components/PoseGuide'
 import type { CameraEnv } from '../cameraEnv'
-import type { BlurredPhoto } from '../lib/capture'
+import { CaptureRefused, type BlurredPhoto } from '../lib/capture'
+import { CAMERA_DOWNLOAD_MB } from '../lib/cameraFiles'
+import { framingHint, type Framing } from '../lib/pose'
 import { FRAME_ASPECT, ZOOM } from '../lib/blur'
 import { createSteadyTimer, isLevel, levelHint, type Tilt } from '../lib/level'
 import type { PhotoSlot, Shot } from '../lib/photoQueue'
@@ -27,6 +31,16 @@ export interface PhotoFlowProps {
 }
 
 type Step = 'ask' | 'setup' | 'camera' | 'review' | 'done'
+
+const TOOLS_FAILED = 'The face blur could not run, so no photo was made. Close the app, open it again and retry.'
+/** Why a photo was not made, in plain words. */
+function refusalText(e: unknown): string {
+  if (e instanceof CaptureRefused) {
+    if (e.reason === 'no_tools' || e.reason === 'tools_failed') return TOOLS_FAILED
+    return `No photo was made. ${framingHint(e.reason)}`
+  }
+  return 'The photo could not be made. Try again.'
+}
 
 const ORDER: PhotoSlot[] = ['front', 'side', 'back']
 const LABEL: Record<PhotoSlot, string> = { front: 'Front photo', side: 'Side photo', back: 'Back photo (optional)' }
@@ -56,9 +70,15 @@ export function PhotoFlow({ participant, env, fromFinish = false, save, finish, 
     setZoom(z)
   }
   const [shot, setShot] = useState<{ photo: BlurredPhoto; tilt: Tilt | null; takenAt: string; zoom: number; url: string } | null>(null)
+  const [face, setFace] = useState<boolean | null>(null)
   const [body, setBody] = useState<boolean | null>(null)
   const [a4, setA4] = useState<boolean | null>(null)
   const [busy, setBusy] = useState(false)
+  /** One-time camera tools download: files done / total, or null when not downloading. */
+  const [getting, setGetting] = useState<[number, number] | null>(null)
+  /** Live body check: undefined = not known yet; null = slow phone (the photo is checked after). */
+  const [framing, setFraming] = useState<Framing | null | undefined>(undefined)
+  const framingNow = useRef<Framing | null | undefined>(undefined)
 
   const video = useRef<HTMLVideoElement>(null)
   const stop = useRef<(() => void) | null>(null)
@@ -84,11 +104,13 @@ export function PhotoFlow({ participant, env, fromFinish = false, save, finish, 
       const photo = await env.grab(video.current, z)
       const url = URL.createObjectURL(new Blob([photo.jpeg as BlobPart], { type: 'image/jpeg' }))
       setShot({ photo, tilt: lastTilt.current, takenAt: new Date(env.now()).toISOString(), zoom: z, url })
+      setFace(null)
       setBody(null)
       setA4(null)
+      setError('')
       setStep('review')
-    } catch {
-      setError('The photo could not be made. Try again.')
+    } catch (e) {
+      setError(refusalText(e))
     } finally {
       shooting.current = false
       timer.current.reset()
@@ -96,7 +118,22 @@ export function PhotoFlow({ participant, env, fromFinish = false, save, finish, 
     }
   }, [env])
 
-  // Level lock + auto-shutter while the live camera is showing.
+  // Body check while the live camera is showing (slow phones: none; the photo is checked after).
+  useEffect(() => {
+    if (step !== 'camera' || !video.current) return
+    framingNow.current = undefined
+    setFraming(undefined)
+    return env.watchBody(
+      video.current,
+      () => zoomNow.current,
+      (f) => {
+        framingNow.current = f
+        setFraming(f)
+      },
+    )
+  }, [step, env])
+
+  // Level lock + body check + auto-shutter while the live camera is showing.
   useEffect(() => {
     if (step !== 'camera') return
     timer.current.reset()
@@ -104,7 +141,9 @@ export function PhotoFlow({ participant, env, fromFinish = false, save, finish, 
       lastTilt.current = t
       setTilt(t)
       if (shooting.current) return
-      const left = timer.current.feed(isLevel(t), env.now())
+      const f = framingNow.current
+      const bodyOk = f === null || (f !== undefined && f.problem === null)
+      const left = timer.current.feed(isLevel(t) && bodyOk, env.now())
       setCount(left)
       if (left === 0) void shoot()
     })
@@ -114,18 +153,38 @@ export function PhotoFlow({ participant, env, fromFinish = false, save, finish, 
     setError('')
     setBusy(true)
     try {
+      // The camera tools come once, the first time (about 18 MB); then they stay on the phone.
+      const ready = await env.prepare((done, total) => setGetting(done < total ? [done, total] : null))
+      setGetting(null)
+      if (ready === 'unsupported') {
+        setError('This phone can’t take study photos: its browser is too old for the face blur. Use another phone for the photos. Consent and measurements still work on this phone.')
+        return
+      }
+      if (ready === 'no_signal') {
+        setError('The camera needs signal once to get ready. Try again when you have signal.')
+        return
+      }
       if (!stop.current) stop.current = await env.start(video.current!)
       else await video.current?.play().catch(() => undefined)
       setStep('camera')
     } catch {
       setError('The camera could not open. Allow the camera for this site in the browser settings, then try again.')
     } finally {
+      setGetting(null)
       setBusy(false)
     }
   }
 
   function retake() {
     setShot(null)
+    setStep('camera')
+    void video.current?.play().catch(() => undefined)
+  }
+
+  /** "Is the face completely hidden?" No → the photo is thrown away, never kept. */
+  function discard() {
+    setShot(null)
+    setError('The photo was deleted and not kept. Take it again: make sure only the participant is in the picture, whole, and facing as shown.')
     setStep('camera')
     void video.current?.play().catch(() => undefined)
   }
@@ -142,10 +201,10 @@ export function PhotoFlow({ participant, env, fromFinish = false, save, finish, 
   }
 
   async function use() {
-    if (!shot || body !== true || a4 === null) return
+    if (!shot || face !== true || body !== true || a4 !== true) return
     setBusy(true)
     try {
-      await save(slot, { photo: shot.photo, levelPitch: shot.tilt?.pitch ?? null, levelRoll: shot.tilt?.roll ?? null, a4Confirmed: a4, takenAt: shot.takenAt, zoom: shot.zoom })
+      await save(slot, { photo: shot.photo, levelPitch: shot.tilt?.pitch ?? null, levelRoll: shot.tilt?.roll ?? null, a4Confirmed: true, faceHidden: true, takenAt: shot.takenAt, zoom: shot.zoom })
       setShot(null)
       const next = ORDER[ORDER.indexOf(slot) + 1]
       if (next) {
@@ -160,6 +219,7 @@ export function PhotoFlow({ participant, env, fromFinish = false, save, finish, 
   }
 
   const level = isLevel(tilt)
+  const bodyOk = framing === null || (framing !== undefined && framing.problem === null)
 
   return (
     <Page>
@@ -181,20 +241,30 @@ export function PhotoFlow({ participant, env, fromFinish = false, save, finish, 
           <SetupDrawing />
           <ul className="list-disc space-y-1 pl-5">
             <li>A plain wall behind, the floor visible. Good light from the front, not behind the person.</li>
-            <li>Barefoot, close-fitting clothing if the person is comfortable.</li>
             <li>
-              Stand about <b>2.5 to 3 m</b> away. Hold the phone upright at <b>mid-body height</b> (about 1 m from the floor). Use the zoom, not your feet, to make the person fill the outline.
+              <b>Nobody behind the person.</b> If people pass, wait.
             </li>
             <li>
-              A <b>plain A4 sheet</b> flat on the floor at the feet, clean and flat.
+              <b>Shoes off.</b> Close-fitting clothing if the person is comfortable; never ask anyone to undress.
+            </li>
+            <li>
+              Stand about <b>2.5 to 3 m</b> away and <b>kneel on one knee</b>, holding the phone upright (about 1 m from the floor). Use the zoom, not your feet.
+            </li>
+            <li>
+              A <b>plain A4 sheet</b> flat on the floor at the feet: clean, flat, no folds. Keep it in a folder; replace it when creased.
             </li>
             <li>Tell the person what you are doing before each photo.</li>
             {participant.ageGroup === 'child' && <li>The guardian stays present for every photo.</li>}
           </ul>
-          <p className="text-sm text-slate-600">The phone takes each photo by itself when it is level and still for 3 seconds. Faces are blurred before anything is kept.</p>
+          <p className="text-sm text-slate-600">The phone takes each photo by itself when the whole person is in the picture and the phone is level and still for 3 seconds. Every head is blurred before anything is kept.</p>
+          {getting && (
+            <p role="status" className="rounded-lg bg-slate-100 p-3 text-center">
+              Getting the camera ready (one time, about {CAMERA_DOWNLOAD_MB} MB)… {getting[0]} of {getting[1]}
+            </p>
+          )}
           {error && <ErrorText>{error}</ErrorText>}
           <Button disabled={busy} onClick={() => void openCamera()}>
-            {busy ? 'Opening the camera…' : 'Open the camera'}
+            {busy ? (getting ? 'Getting the camera ready…' : 'Opening the camera…') : 'Open the camera'}
           </Button>
           <Button variant="secondary" onClick={onLater}>
             Back
@@ -212,7 +282,7 @@ export function PhotoFlow({ participant, env, fromFinish = false, save, finish, 
         {/* The box shows exactly what the photo will be: the centred 3:4 area, zoomed (see frameRect). */}
         <div className="relative mx-auto overflow-hidden rounded-xl bg-black" style={{ aspectRatio: String(FRAME_ASPECT), width: `min(100%, calc(58vh * ${FRAME_ASPECT}))` }}>
           <video ref={video} playsInline muted autoPlay className="absolute inset-0 h-full w-full object-cover" style={{ transform: `scale(${zoom})` }} />
-          <PoseGuide pose={slot} sex={participant.sex} aspect={FRAME_ASPECT} level={level} />
+          <PoseGuide pose={slot} sex={participant.sex} aspect={FRAME_ASPECT} level={level && bodyOk} />
           {count !== null && count > 0 && (
             <div className="absolute inset-0 flex items-center justify-center" aria-live="assertive">
               <span className="rounded-full bg-black/60 px-8 py-4 font-mono text-7xl font-bold text-white">{count}</span>
@@ -230,7 +300,14 @@ export function PhotoFlow({ participant, env, fromFinish = false, save, finish, 
             +
           </button>
         </div>
-        <p className="text-center text-xs text-slate-600">Zoom (don&apos;t walk closer) until the head touches the top line and the heels the bottom line.</p>
+        <p className="text-center text-xs text-slate-600">Zoom (don&apos;t walk closer) until the hint says the whole person is in the picture.</p>
+        <div
+          role="status"
+          aria-label="Person"
+          className={`rounded-xl border-2 p-3 text-center font-semibold ${bodyOk ? 'border-green-600 bg-green-50 text-green-800' : 'border-red-600 bg-red-50 text-red-800'}`}
+        >
+          {framing === undefined ? 'Looking for the person…' : framing === null ? 'This phone checks each photo after taking it.' : framingHint(framing.problem)}
+        </div>
         <div role="status" aria-label="Level" className={`rounded-xl border-2 p-3 text-center font-semibold ${level ? 'border-green-600 bg-green-50 text-green-800' : 'border-red-600 bg-red-50 text-red-800'}`}>
           {levelHint(tilt)}
           {tilt && (
@@ -261,12 +338,21 @@ export function PhotoFlow({ participant, env, fromFinish = false, save, finish, 
         <>
           <p className="text-sm font-semibold text-slate-600">{LABEL[slot]} · check</p>
           <Title>Check the photo</Title>
-          <img src={shot.url} alt={`${LABEL[slot]}, face blurred`} className="mx-auto max-h-[55vh] rounded-xl border border-slate-300" />
+          <img src={shot.url} alt={`${LABEL[slot]}, head blurred`} className="mx-auto max-h-[55vh] rounded-xl border border-slate-300" />
+          <Question
+            label="Is the face completely hidden?"
+            value={face}
+            onChange={(v) => {
+              setFace(v)
+              if (!v) discard()
+            }}
+          />
           <Question label="Is the whole body visible, head to heel?" value={body} onChange={setBody} />
           {body === false && <p className="text-sm font-semibold text-red-700">Retake so the whole body is in the photo.</p>}
           <Question label="Is the A4 sheet fully visible and flat?" value={a4} onChange={setA4} />
+          {a4 === false && <p className="text-sm font-semibold text-red-700">Lay the sheet flat (no folds) where shown, then retake.</p>}
           {error && <ErrorText>{error}</ErrorText>}
-          <Button disabled={busy || body !== true || a4 === null} onClick={() => void use()}>
+          <Button disabled={busy || face !== true || body !== true || a4 !== true} onClick={() => void use()}>
             Use photo
           </Button>
           <Button variant="secondary" onClick={retake}>

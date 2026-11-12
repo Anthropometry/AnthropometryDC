@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FieldDb } from './consentQueue'
-import { finishDraft, flushMeasurements, loadDraft, saveAbout, saveEntry, saveWeightLocal, startDraft, waitingOps, type Entry, type MeasureApi } from './measureQueue'
+import { finishDraft, flushMeasurements, loadDraft, saveAbout, saveEntry, saveWeightLocal, startDraft, upgradeAbout, waitingOps, type About, type Entry, type MeasureApi } from './measureQueue'
 
 let db: FieldDb
 afterEach(async () => {
@@ -45,7 +45,7 @@ describe('measurement queue', () => {
   it('ALLOW: about → entries → finish, sent in order; draft cleared once finished and sent', async () => {
     db = new FieldDb(`test-${Math.random()}`)
     let d = await draft()
-    d = await saveAbout(db, d, { sex: 'female', ageYears: 30, clothing: 'light' })
+    d = await saveAbout(db, d, { sex: 'female', ageRange: '25-34', clothing: 'light' })
     d = await saveEntry(db, d, entry('neck_girth'))
     d = await saveEntry(db, d, entry('neck_girth', ['35.0'])) // a change is sent too, in order
     await finishDraft(db, d, '2026-11-09T10:05:00Z')
@@ -66,10 +66,23 @@ describe('measurement queue', () => {
     expect(await startDraft(db, { participantId: 'p1', collectorId: 'me', isPractice: true, ageGroup: 'adult', intimateOk: false })).toEqual(back)
   })
 
+  it('a draft or waiting change saved with an exact age (before age groups) is sent as its range', async () => {
+    db = new FieldDb(`test-${Math.random()}`)
+    const d = await draft()
+    const old = { sex: 'female', ageYears: 30, clothing: 'light' } as unknown as About
+    await db.drafts.put({ ...d, about: old })
+    await db.ops.add({ collectorId: 'me', participantId: 'p1', kind: 'about', about: old })
+    expect((await loadDraft(db, 'p1'))?.about).toEqual({ sex: 'female', ageRange: '25-34', clothing: 'light' })
+    const { api: a } = api()
+    await flushMeasurements(db, 'me', a)
+    expect(a.saveAbout).toHaveBeenCalledWith('p1', { sex: 'female', ageRange: '25-34', clothing: 'light' })
+    expect(upgradeAbout({ sex: 'male', clothing: 'heavy' })).toBeNull()
+  })
+
   it('offline: nothing is lost; the retry continues where it stopped', async () => {
     db = new FieldDb(`test-${Math.random()}`)
     let d = await draft()
-    d = await saveAbout(db, d, { sex: 'male', ageYears: 40, clothing: 'medium' })
+    d = await saveAbout(db, d, { sex: 'male', ageRange: '35-44', clothing: 'medium' })
     await saveEntry(db, d, entry('neck_girth'))
     const down = api({ saveEntry: vi.fn(async () => Promise.reject(new Error('offline'))) })
     expect(await flushMeasurements(db, 'me', down.api)).toBe(1)

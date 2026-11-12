@@ -22,6 +22,11 @@ const columns = (m: PhotoMeta) => ({
   phone_model: m.phoneModel,
   a4_confirmed: m.a4Confirmed,
   zoom: m.zoom,
+  blur_version: m.blurVersion,
+  people_detected: m.peopleDetected,
+  face_hidden_confirmed: m.faceHiddenConfirmed,
+  head_top_y: m.headTopY,
+  heel_y: m.heelY,
 })
 
 export function photoApi(client: SupabaseClient, fetchFn: FetchLike = (i, r) => fetch(i, r)): PhotoApi {

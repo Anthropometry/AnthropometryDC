@@ -25,6 +25,14 @@ export interface PhotoMeta {
   a4Confirmed: boolean
   /** Digital zoom used (1 = none), for the researchers. */
   zoom: number
+  /** F6 Amendment A: 2 = whole-head blur from the pose model (older photos are never sent). */
+  blurVersion: 2
+  peopleDetected: number
+  /** The collector answered Yes to "Is the face completely hidden?" (always true on a saved photo). */
+  faceHiddenConfirmed: true
+  /** Top of the head and bottom of the heels, photo pixels, measured before the blur. */
+  headTopY: number
+  heelY: number
 }
 
 export interface QueuedPhoto extends PhotoMeta {
@@ -56,6 +64,8 @@ export interface Shot {
   levelPitch: number | null
   levelRoll: number | null
   a4Confirmed: boolean
+  /** The answer to "Is the face completely hidden?": only Yes can be saved. */
+  faceHidden: boolean
   takenAt: string
   zoom: number
 }
@@ -69,6 +79,7 @@ export async function savePhoto(
   shot: Shot,
 ): Promise<void> {
   if (!isBlurred(shot.photo)) throw new Error('not_blurred')
+  if (shot.faceHidden !== true) throw new Error('face_not_hidden')
   const p = shot.photo
   const row: QueuedPhoto = {
     key: `${who.participantId}:${who.slot}`,
@@ -86,6 +97,11 @@ export async function savePhoto(
     phoneModel: who.phoneModel ? who.phoneModel.slice(0, 80) : null,
     a4Confirmed: shot.a4Confirmed,
     zoom: Math.round(Math.min(4, Math.max(1, shot.zoom)) * 10) / 10,
+    blurVersion: 2,
+    peopleDetected: Math.min(20, p.peopleDetected),
+    faceHiddenConfirmed: true,
+    headTopY: p.headTopY,
+    heelY: p.heelY,
     uploaded: false,
   }
   await db.photos.put(row)
@@ -117,6 +133,11 @@ const meta = (r: QueuedPhoto): PhotoMeta => ({
   phoneModel: r.phoneModel,
   a4Confirmed: r.a4Confirmed,
   zoom: r.zoom ?? 1,
+  blurVersion: 2,
+  peopleDetected: r.peopleDetected,
+  faceHiddenConfirmed: true,
+  headTopY: r.headTopY,
+  heelY: r.heelY,
 })
 
 /**
@@ -128,6 +149,16 @@ export async function flushPhotos(db: FieldDb, collectorId: string, api: PhotoAp
   const failed = new Set<string>()
   const rows = await db.photos.where('collectorId').equals(collectorId).toArray()
   for (const r of rows) {
+    // Amendment A: a photo made with the old blur (it could miss a face) is never sent. It is deleted
+    // from the phone with its "done" mark, so the list asks for the photos again.
+    if ((r as Partial<QueuedPhoto>).blurVersion !== 2) {
+      await db.transaction('rw', db.photos, db.photoDone, async () => {
+        await db.photos.delete(r.key)
+        await db.photoDone.delete(r.participantId)
+      })
+      failed.add(r.participantId)
+      continue
+    }
     if (failed.has(r.participantId)) continue
     try {
       if (!r.uploaded) {

@@ -19,6 +19,9 @@ import {
   unusual,
   unusualWeight,
   valueTenths,
+  rangesFor,
+  showRange,
+  type AgeRange,
   type Code,
   type Sex,
   type Unit,
@@ -78,17 +81,16 @@ export function entryTenths(e: Entry | undefined): number | null {
 
 function About_({ draft, onSaved }: { draft: MeasureDraft; onSaved: (a: About) => Promise<void> }) {
   const [sex, setSex] = useState<Sex | null>(draft.about?.sex ?? null)
-  const [age, setAge] = useState(draft.about ? String(draft.about.ageYears) : '')
+  const [age, setAge] = useState<AgeRange | null>(draft.about?.ageRange ?? null)
   const [clothing, setClothing] = useState<Clothing | null>(draft.about?.clothing ?? null)
   const [error, setError] = useState('')
-  const n = Number(age)
   const child = draft.ageGroup === 'child'
-  const ageOk = /^\d{1,3}$/.test(age) && (child ? n >= 8 && n <= 17 : n >= 18 && n <= 100)
-  const tooYoung = child && /^\d{1,2}$/.test(age) && n < 8
+  const ranges = rangesFor(draft.ageGroup)
+  const ageOk = age !== null && ranges.includes(age)
   return (
     <>
       <Title>About the participant</Title>
-      <p className="text-sm text-slate-600">Asked once. Sex and age choose which measurements to take.</p>
+      <p className="text-sm text-slate-600">Asked once. Sex and age group choose which measurements to take. Ask for the age group only, not the exact age.</p>
       <ErrorText>{error}</ErrorText>
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 font-semibold">Sex</legend>
@@ -101,18 +103,17 @@ function About_({ draft, onSaved }: { draft: MeasureDraft; onSaved: (a: About) =
           </Choice>
         </div>
       </fieldset>
-      <Field
-        label={child ? 'Age in years (8 to 17)' : 'Age in years (18 or older)'}
-        inputMode="numeric"
-        maxLength={3}
-        value={age}
-        onChange={(e) => setAge(e.target.value.replace(/\D/g, ''))}
-      />
-      {tooYoung && (
-        <p role="status" className="rounded-lg bg-amber-50 p-3">
-          Children under 8 are not measured in this study. Their consent is kept; nothing else is needed.
-        </p>
-      )}
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-2 font-semibold">Age group</legend>
+        <div className="grid grid-cols-3 gap-2">
+          {ranges.map((r) => (
+            <Choice key={r} chosen={age === r} onClick={() => setAge(r)}>
+              {showRange(r)}
+            </Choice>
+          ))}
+        </div>
+        {child && <p className="text-xs text-slate-600">Children under 8 do not take part in this study.</p>}
+      </fieldset>
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 font-semibold">Clothing worn</legend>
         <div className="grid grid-cols-3 gap-2">
@@ -127,7 +128,7 @@ function About_({ draft, onSaved }: { draft: MeasureDraft; onSaved: (a: About) =
         disabled={!sex || !ageOk || !clothing}
         onClick={() => {
           setError('')
-          onSaved({ sex: sex!, ageYears: n, clothing: clothing! }).catch(() => setError('Could not save on this phone. Try again.'))
+          onSaved({ sex: sex!, ageRange: age!, clothing: clothing! }).catch(() => setError('Could not save on this phone. Try again.'))
         }}
       >
         Next
@@ -142,7 +143,7 @@ export function MeasureFlow({ draft: initial, unit, store, onDone, onBack, now =
   const [step, setStep] = useState<Step>(!initial.about ? 'about' : started ? 'summary' : 'intro')
   const [error, setError] = useState('')
 
-  const codes = useMemo(() => (draft.about ? setFor(draft.about.sex, draft.about.ageYears) : []), [draft.about])
+  const codes = useMemo(() => (draft.about ? setFor(draft.about.sex, draft.about.ageRange) : []), [draft.about])
   const declined = (c: Code) => INTIMATE.has(c) && !draft.intimateOk
   const screens = codes.filter((c) => !declined(c))
 
@@ -262,12 +263,12 @@ export function MeasureFlow({ draft: initial, unit, store, onDone, onBack, now =
       hairAddsHeight: code === 'height' ? hair : null,
       measuredAt: now().toISOString(),
     }
-    const range = unusual(code, value, draft.about!.sex, draft.about!.ageYears)
+    const range = unusual(code, value, draft.about!.sex, draft.about!.ageRange)
     if (range) {
       setPendingEntry(entry)
       setPrompt({
         kind: 'unusual',
-        text: `${showCm(value)} is unusual for ${DEF[code].label.toLowerCase()} (expected ${range[0]}–${range[1]} cm${draft.about!.ageYears < 18 ? ' at this age' : ' for adults'}). Check the tape.`,
+        text: `${showCm(value)} is unusual for ${DEF[code].label.toLowerCase()} (expected ${range[0]}–${range[1]} cm${draft.ageGroup === 'child' ? ' at this age' : ' for adults'}). Check the tape.`,
       })
       return
     }
@@ -355,9 +356,9 @@ export function MeasureFlow({ draft: initial, unit, store, onDone, onBack, now =
     const t = readingTenths(wPadNow.current, 'cm')
     if (t === null || t < 20) return setError('Type the weight like 72.4 (one decimal at most).')
     setError('')
-    const range = unusualWeight(t, draft.about!.ageYears)
+    const range = unusualWeight(t, draft.about!.ageRange)
     if (range && !confirmed) {
-      setWPrompt(`${(t / 10).toFixed(1)} kg is unusual (expected ${range[0]}–${range[1]} kg${draft.about!.ageYears < 18 ? ' at this age' : ' for adults'}). Check the scale or ask again.`)
+      setWPrompt(`${(t / 10).toFixed(1)} kg is unusual (expected ${range[0]}–${range[1]} kg${draft.ageGroup === 'child' ? ' at this age' : ' for adults'}). Check the scale or ask again.`)
       return
     }
     void saveWeight({ kg: t / 10, source: 'scale', confirmedUnusual: confirmed })
@@ -682,7 +683,7 @@ export function MeasureFlow({ draft: initial, unit, store, onDone, onBack, now =
         <>
           <Title>Summary</Title>
           <p className="text-sm text-slate-600">
-            {draft.about.sex === 'female' ? 'Female' : 'Male'}, {draft.about.ageYears} years, {draft.about.clothing} clothing. Tap a measurement to
+            {draft.about.sex === 'female' ? 'Female' : 'Male'}, aged {showRange(draft.about.ageRange)}, {draft.about.clothing} clothing. Tap a measurement to
             change it.
           </p>
           <ul className="flex flex-col gap-1">

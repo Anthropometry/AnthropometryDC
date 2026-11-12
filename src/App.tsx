@@ -70,7 +70,13 @@ import { browserCameraEnv } from './cameraEnv'
 import { consentText } from './lib/consentText'
 import { FieldDb, flushConsents, saveJob, waitingCount as queuedCount, waitingJobs, type ConsentJob } from './lib/consentQueue'
 import type { PracticeRow } from './lib/practice'
+import { useBackButton } from './lib/backButton'
 import { Home, Inactive, RealComingSoon, Waiting, Welcome } from './screens/Status'
+
+/** Where the phone's Back goes from each screen (see src/lib/backButton.ts). */
+export function parentView(v: View): View {
+  return v === 'measure' || v === 'photos' ? 'practice-list' : 'main'
+}
 
 export type View =
   | 'main'
@@ -256,6 +262,7 @@ async function flushCheck(store: KeyValueStore | undefined): Promise<boolean> {
 export default function App() {
   const [profile, setProfile] = useState<Profile | null>(() => loadCachedProfile(storage))
   const [view, setView] = useState<View>('main')
+  useBackButton(view, setView, parentView, 'main')
   const [online, setOnline] = useState(navigator.onLine)
   const [collectionOpen, setCollectionOpen] = useState(() => readJson<boolean>(storage, OPEN_KEY, false) === true)
   const [consentVersion, setConsentVersion] = useState<string | null>(() => readJson<string | null>(storage, VERSION_KEY, null))

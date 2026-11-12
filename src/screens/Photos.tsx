@@ -356,7 +356,7 @@ export function PhotoFlow({ participant, env, fromFinish = false, save, finish, 
             Use photo
           </Button>
           <Button variant="secondary" onClick={retake}>
-            Retake
+            Back: retake
           </Button>
         </>
       )}

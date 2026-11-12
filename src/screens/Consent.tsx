@@ -226,6 +226,9 @@ export function ConsentFlow(p: ConsentFlowProps) {
           <Button variant="danger" disabled={busy} onClick={() => void save(true)}>
             No, the child does not agree
           </Button>
+          <Button variant="secondary" disabled={busy} onClick={() => setStep('consent')}>
+            Back
+          </Button>
         </>
       )}
 

@@ -74,6 +74,15 @@ function savedBefore(code: Code, sex: 'female' | 'male' = 'female', age: AgeRang
 }
 
 describe('About the participant', () => {
+  it('has a Back button (nothing saved)', () => {
+    const { store } = fakeStore()
+    const onBack = vi.fn()
+    render(<MeasureFlow draft={draft()} unit="cm" store={store} onDone={vi.fn()} onBack={onBack} />)
+    fireEvent.click(btn('Back'))
+    expect(onBack).toHaveBeenCalled()
+    expect(store.about).not.toHaveBeenCalled()
+  })
+
   it('needs sex, an age group and clothing; only adult groups for an adult; no exact age asked', async () => {
     const { store } = fakeStore()
     render(<MeasureFlow draft={draft()} unit="cm" store={store} onDone={vi.fn()} onBack={vi.fn()} />)

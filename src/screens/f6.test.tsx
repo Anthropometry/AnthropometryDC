@@ -141,7 +141,7 @@ describe('photos after Finish', () => {
 
     await holdLevel(s.tilt, 20000)
     await waitFor(() => screen.getByRole('heading', { name: 'Check the photo' }))
-    fireEvent.click(btn('Retake'))
+    fireEvent.click(btn('Back: retake'))
     await waitFor(() => screen.getByText(/Side photo · 2 of 3/))
     await holdLevel(s.tilt, 30000)
     await waitFor(() => screen.getByRole('heading', { name: 'Check the photo' }))

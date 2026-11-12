@@ -79,7 +79,7 @@ export function entryTenths(e: Entry | undefined): number | null {
   )
 }
 
-function About_({ draft, onSaved }: { draft: MeasureDraft; onSaved: (a: About) => Promise<void> }) {
+function About_({ draft, onSaved, onBack }: { draft: MeasureDraft; onSaved: (a: About) => Promise<void>; onBack: () => void }) {
   const [sex, setSex] = useState<Sex | null>(draft.about?.sex ?? null)
   const [age, setAge] = useState<AgeRange | null>(draft.about?.ageRange ?? null)
   const [clothing, setClothing] = useState<Clothing | null>(draft.about?.clothing ?? null)
@@ -132,6 +132,9 @@ function About_({ draft, onSaved }: { draft: MeasureDraft; onSaved: (a: About) =
         }}
       >
         Next
+      </Button>
+      <Button variant="secondary" onClick={onBack}>
+        Back
       </Button>
     </>
   )
@@ -434,6 +437,7 @@ export function MeasureFlow({ draft: initial, unit, store, onDone, onBack, now =
       {step === 'about' && (
         <About_
           draft={draft}
+          onBack={onBack}
           onSaved={async (a) => {
             setDraft(await store.about(draft, a))
             setStep('intro')

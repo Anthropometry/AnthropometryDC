@@ -80,15 +80,16 @@ async function ownedParticipant(
   token: string,
   participantId: string,
   userId: string,
-): Promise<{ isPractice: boolean } | null> {
-  const url = `${env.SUPABASE_URL}/rest/v1/participants?id=eq.${participantId}&collector_id=eq.${userId}&select=id,is_practice`
+): Promise<{ isPractice: boolean; measured: boolean } | null> {
+  const url = `${env.SUPABASE_URL}/rest/v1/participants?id=eq.${participantId}&collector_id=eq.${userId}&select=id,is_practice,measurements_done_at`
   const res = await fetch(url, {
     headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY, authorization: `Bearer ${token}` },
   })
   if (!res.ok) return null
   const rows = (await res.json()) as unknown
   if (!Array.isArray(rows) || rows.length !== 1) return null
-  return { isPractice: (rows[0] as { is_practice?: unknown }).is_practice === true }
+  const row = rows[0] as { is_practice?: unknown; measurements_done_at?: unknown }
+  return { isPractice: row.is_practice === true, measured: typeof row.measurements_done_at === 'string' }
 }
 
 /** Where a participant's files live: practice ones under practice/, so Gate B can clear them in one go. */
@@ -129,6 +130,9 @@ async function handleUpload(
   if (!rule.magic.every((b, i) => body[i] === b)) return json(415, { error: 'unsupported_type' })
 
   // Fixed key per slot: a retried upload overwrites instead of duplicating.
+  // F6: photos only after the measurements are finished (every photo has its ground truth).
+  if (kind === 'photos' && !owned.measured) return json(409, { error: 'measurements_not_finished' })
+
   const key = `${folderFor(participantId, owned.isPractice)}${slot}.${rule.ext}`
   await rule.bucket(env).put(key, body, {
     httpMetadata: { contentType: rule.contentType },

@@ -23,6 +23,23 @@ export interface CheckEnv {
   estimateStorage?: () => Promise<{ quota?: number }>
   userAgent: string
   highEntropy?: () => Promise<{ model?: string; platformVersion?: string; platform?: string }>
+  /** F6 Amendment A: can this browser run the camera tools (WebAssembly with SIMD)? */
+  validateWasm?: (bytes: Uint8Array) => boolean
+}
+
+/**
+ * The smallest WebAssembly module that uses a SIMD instruction: browsers that accept it can run
+ * the camera tools (Chrome since 2021, Safari on iOS 16.4+). Same probe as the wasm-feature-detect
+ * library.
+ */
+export const SIMD_PROBE = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11])
+
+export function supportsCameraTools(validate?: (bytes: Uint8Array) => boolean): boolean {
+  try {
+    return !!validate && validate(SIMD_PROBE)
+  } catch {
+    return false
+  }
 }
 
 export interface PhoneCheckResult {
@@ -33,6 +50,8 @@ export interface PhoneCheckResult {
   cameraResolution: string | null
   cameraProblem: 'denied' | 'none' | null
   motionOk: boolean
+  /** F6 Amendment A: the camera tools can run, so this phone can take study photos. */
+  photosOk: boolean
   storageOk: boolean
   storageMb: number | null
   passed: boolean
@@ -183,15 +202,19 @@ export async function runPhoneCheck(env: CheckEnv, now: () => Date = () => new D
     cameraResolution,
     cameraProblem,
     motionOk,
+    photosOk: supportsCameraTools(env.validateWasm),
     storageOk,
     storageMb,
-    passed: cameraOk && motionOk && storageOk,
+    passed: cameraOk && motionOk && storageOk && supportsCameraTools(env.validateWasm),
     checkedAt: now().toISOString(),
   }
 }
 
 /** Plain fix text for each failing line. */
-export function fixFor(line: 'camera' | 'motion' | 'storage', r: PhoneCheckResult): string | null {
+export function fixFor(line: 'camera' | 'motion' | 'storage' | 'photos', r: PhoneCheckResult): string | null {
+  if (line === 'photos' && !r.photosOk) {
+    return 'This phone can’t take study photos: its browser is too old for the face blur. Update the browser (Chrome, or iOS 16.4 or newer) and check again, or use another phone for photos. Consent and measurements still work.'
+  }
   if (line === 'camera' && !r.cameraOk) {
     return r.cameraProblem === 'denied'
       ? 'Allow the camera for this app (browser settings → Site settings → Camera), then check again.'

@@ -12,3 +12,6 @@ coverage/
 !.dev.vars.example
 .DS_Store
 Thumbs.db
+
+# MediaPipe runtime, copied from node_modules at build (scripts/copy-mediapipe.mjs)
+public/mediapipe/

@@ -71,6 +71,7 @@ export function PhoneCheck({ run, save, onBack }: PhoneCheckProps) {
           <ul className="flex flex-col gap-2">
             <Row ok={result.cameraOk} label="Camera" detail={result.cameraResolution} fix={fixFor('camera', result)} />
             <Row ok={result.motionOk} label="Motion sensor" fix={fixFor('motion', result)} />
+            <Row ok={result.photosOk} label="Study photos (face blur)" fix={fixFor('photos', result)} />
             <Row
               ok={result.storageOk}
               label="Offline storage"

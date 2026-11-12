@@ -23,6 +23,7 @@ export function browserCheckEnv(): CheckEnv {
         ? () => Orientation.requestPermission!()
         : undefined,
     // Gyroscope angles or accelerometer gravity, whichever the phone has (see isTiltReading).
+    validateWasm: typeof WebAssembly !== 'undefined' ? (b) => WebAssembly.validate(b as BufferSource) : undefined,
     waitForMotion:
       Orientation || typeof DeviceMotionEvent !== 'undefined'
         ? (ms) =>

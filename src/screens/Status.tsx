@@ -1,5 +1,5 @@
 /** Small screens: Welcome, Waiting for approval, Not active, Home (F2/F3). */
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { Profile } from '../lib/profile'
 import { LANGUAGE_NAMES } from '../lib/settings'
 import { shortDate } from '../lib/invite'
@@ -80,16 +80,46 @@ export interface HomeProps {
   onInvite: () => void
   onSignOut: () => void
   install?: ReactNode
+  /** F7: participants whose sending needs attention. */
+  stuck?: number
+  /** F7: open "Waiting to send". */
+  onSync?: () => void
+  /** F7: a new app version is waiting (only offered here, never during a participant). */
+  updateReady?: boolean
+  onUpdate?: () => void
 }
 
 export function Home(p: HomeProps) {
   const { profile, online } = p
+  const [askSignOut, setAskSignOut] = useState(false)
+  if (askSignOut)
+    return (
+      <Page>
+        <Title>Sign out?</Title>
+        <p role="alert" className="rounded-xl bg-amber-50 p-4">
+          {p.waiting} item{p.waiting === 1 ? ' is' : 's are'} still on this phone and not sent. They stay on this phone and are sent the next time
+          you sign in on it.
+        </p>
+        <Button variant="danger" onClick={p.onSignOut}>
+          Sign out anyway
+        </Button>
+        <Button variant="secondary" onClick={() => setAskSignOut(false)}>
+          Back
+        </Button>
+      </Page>
+    )
   return (
     <Page>
       <OfflineBanner online={online} />
       <Title>Hello {profile.displayName}</Title>
       <div className="flex flex-col gap-2">
-        <SyncBadge online={online} waiting={p.waiting} />
+        <SyncBadge online={online} waiting={p.waiting} stuck={p.stuck ?? 0} onOpen={p.onSync} />
+        {p.updateReady && (
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-brand p-3" role="status" aria-label="Update">
+            <span className="text-sm font-semibold">Update ready.</span>
+            <Button onClick={() => p.onUpdate?.()}>Restart now</Button>
+          </div>
+        )}
         <p className="text-sm text-slate-600">
           {p.collectionOpen ? 'Real collection is open' : 'Practice only'} · {profile.unit} · {LANGUAGE_NAMES[profile.language]}
         </p>
@@ -131,7 +161,7 @@ export function Home(p: HomeProps) {
         </Button>
       )}
       {p.install}
-      <Button variant="secondary" onClick={p.onSignOut}>
+      <Button variant="secondary" onClick={() => (p.waiting > 0 ? setAskSignOut(true) : p.onSignOut())}>
         Sign out
       </Button>
     </Page>

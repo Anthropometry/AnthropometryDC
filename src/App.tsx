@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import {
@@ -33,7 +33,7 @@ import {
   saveSettingsRemote,
 } from './data/fieldwork'
 import { flushSettings, loadPendingSettings, saveSettings, withSettings, type Settings } from './lib/settings'
-import { flushPractice, loadWaiting, mergePractice, removePractice, type PracticeApi } from './lib/practice'
+import { flushPractice, loadWaiting, mergePractice, practiceLabel, removePractice, type PracticeApi } from './lib/practice'
 import { runPhoneCheck, type PhoneCheckResult } from './lib/phonecheck'
 import type { ShareEnv } from './lib/invite'
 import { browserCheckEnv } from './browserEnv'
@@ -59,18 +59,20 @@ import {
   saveToldHeightLocal,
   saveToldWeightLocal,
   startDraft,
-  waitingOps,
   type MeasureDraft,
 } from './lib/measureQueue'
 import { consentApi, listMine, previewWithdraw, withdraw } from './data/consent'
 import { photoApi } from './data/photos'
-import { finishPhotos, flushPhotos, savePhoto, waitingPhotos } from './lib/photoQueue'
+import { finishPhotos, flushPhotos, savePhoto } from './lib/photoQueue'
 import { PhotoFlow } from './screens/Photos'
 import { browserCameraEnv } from './cameraEnv'
 import { consentText } from './lib/consentText'
-import { FieldDb, flushConsents, saveJob, waitingCount as queuedCount, waitingJobs, type ConsentJob } from './lib/consentQueue'
+import { FieldDb, flushConsents, saveJob, waitingJobs, type ConsentJob } from './lib/consentQueue'
 import type { PracticeRow } from './lib/practice'
 import { useBackButton } from './lib/backButton'
+import { createSender, issueReporter, keepDataOnPhone, syncSummary } from './lib/sync'
+import { applyUpdate, isUpdateReady, onUpdateChange } from './lib/update'
+import { SyncScreen } from './screens/Sync'
 import { Home, Inactive, RealComingSoon, Waiting, Welcome } from './screens/Status'
 
 /** Where the phone's Back goes from each screen (see src/lib/backButton.ts). */
@@ -91,6 +93,7 @@ export type View =
   | 'real'
   | 'measure'
   | 'photos'
+  | 'sync'
 
 export interface AppViewProps {
   profile: Profile | null
@@ -102,6 +105,9 @@ export interface AppViewProps {
   /** F2/F3 facts shown on Home. */
   collectionOpen?: boolean
   waiting?: number
+  stuck?: number
+  updateReady?: boolean
+  onUpdate?: () => void
   lastCheck?: { passed: boolean; checkedAt: string } | null
   join: ReactNode
   signIn: ReactNode
@@ -119,6 +125,8 @@ export interface AppViewProps {
   measure?: ReactNode
   /** F6: photos of one participant. */
   photos?: ReactNode
+  /** F7: waiting to send. */
+  sync?: ReactNode
 }
 
 /** Pure routing: which screen for this profile and view (tested on its own). */
@@ -142,6 +150,7 @@ export function AppView(p: AppViewProps) {
   if (p.view === 'practice-list') return <>{p.practiceList}</>
   if (p.view === 'measure' && p.measure) return <>{p.measure}</>
   if (p.view === 'photos' && p.photos) return <>{p.photos}</>
+  if (p.view === 'sync' && p.sync) return <>{p.sync}</>
   if (p.view === 'real' && open) return <>{p.real ?? <RealComingSoon onBack={() => p.setView('main')} />}</>
   return (
     <Home
@@ -159,6 +168,10 @@ export function AppView(p: AppViewProps) {
       onInvite={() => p.setView('invite')}
       onSignOut={p.onSignOut}
       install={p.install}
+      stuck={p.stuck ?? 0}
+      onSync={() => p.setView('sync')}
+      updateReady={p.updateReady}
+      onUpdate={p.onUpdate}
     />
   )
 }
@@ -236,6 +249,8 @@ const storage: KeyValueStore | undefined = (() => {
 const OPEN_KEY = 'anthro-collect.collection-open.v1'
 const VERSION_KEY = 'anthro-collect.consent-version.v1'
 const LAST_CHECK = 'anthro-collect.last-check.v1'
+/** F7: when everything waiting was last sent (per collector). */
+const LAST_SENT = 'anthro-collect.last-sent.v1'
 const CHECK_PENDING = 'anthro-collect.check-pending.v1'
 
 /** Everything waiting on this phone for one collector: settings, practice records, a phone check. */
@@ -267,6 +282,11 @@ export default function App() {
   const [collectionOpen, setCollectionOpen] = useState(() => readJson<boolean>(storage, OPEN_KEY, false) === true)
   const [consentVersion, setConsentVersion] = useState<string | null>(() => readJson<string | null>(storage, VERSION_KEY, null))
   const [queued, setQueued] = useState(0)
+  const [stuck, setStuck] = useState(0)
+  const updateReady = useSyncExternalStore(onUpdateChange, isUpdateReady, () => false)
+  /** F7: who is sending, and the one sender (set below; used by loadProfile too). */
+  const collectorRef = useRef<string | null>(null)
+  const senderRef = useRef<ReturnType<typeof createSender> | null>(null)
   const [tick, setTick] = useState(0)
   const bump = useCallback(() => setTick((t) => t + 1), [])
 
@@ -291,11 +311,9 @@ export default function App() {
         await flushSettings(store, (s) => saveSettingsRemote(db, p.id, s))
         await flushPractice(store, practiceApi)
         await flushCheck(store)
-        if (fieldDb && sendConsent) await flushConsents(fieldDb, p.id, sendConsent).catch(() => 0)
-        // Measurements after consents: the database refuses them without consent.
-        if (fieldDb && sendMeasure) await flushMeasurements(fieldDb, p.id, sendMeasure).catch(() => 0)
-        // Photos last: the Worker and database refuse them before consent and finished measurements.
-        if (fieldDb && sendPhotos) await flushPhotos(fieldDb, p.id, sendPhotos).catch(() => 0)
+        // F7: consents → measurements → photos, through the one sender (never two sends at once).
+        collectorRef.current = p.id
+        await senderRef.current?.request()
         const gate = await fetchGate(db).catch(() => null)
         return { profile: withSettings(p, loadPendingSettings(store)), gate }
       }
@@ -376,6 +394,9 @@ export default function App() {
     // Photos finished on this phone and still waiting to send count as done here.
     const doneHere = fieldDb ? new Set((await fieldDb.photoDone.where('collectorId').equals(profile.id).toArray().catch(() => [])).map((d) => d.participantId)) : new Set<string>()
     for (const r of server) if (doneHere.has(r.id)) r.photosDone = true
+    // F7: anything of this participant still on the phone (measurements, photos) shows as waiting.
+    const onPhone = fieldDb ? new Set((await syncSummary(fieldDb, profile.id).catch(() => null))?.participants.map((x) => x.participantId) ?? []) : new Set<string>()
+    for (const r of server) if (onPhone.has(r.id)) r.waiting = true
     return mergePractice([...server, ...jobs.filter((j) => !known.has(j.participantId)).map(jobRow)], loadWaiting(mine))
   }, [mine, profile])
 
@@ -383,9 +404,11 @@ export default function App() {
   useEffect(() => {
     let alive = true
     if (fieldDb && profile) {
-      void Promise.all([queuedCount(fieldDb, profile.id), waitingOps(fieldDb, profile.id), waitingPhotos(fieldDb, profile.id)])
-        .then(([c, m, f]) => {
-          if (alive) setQueued(c + m + f)
+      void syncSummary(fieldDb, profile.id)
+        .then((s) => {
+          if (!alive) return
+          setQueued(s.consents + s.measurements + s.photos)
+          setStuck(s.stuck)
         })
         .catch(() => undefined)
     }
@@ -396,16 +419,48 @@ export default function App() {
 
   // F5: the participant being measured, and how its changes are kept and sent.
   const [measuring, setMeasuring] = useState<MeasureDraft | null>(null)
+  // F7: the one sender. Consents → measurements → photos; a participant whose consent (or
+  // measurements) has not arrived is left for later without counting as a failure. Retries by itself
+  // while online (src/lib/sync.ts).
+  useEffect(() => {
+    const sender = createSender({
+        isOnline: () => navigator.onLine,
+        setTimer: (fn, ms) => setTimeout(fn, ms),
+        clearTimer: (t) => clearTimeout(t as ReturnType<typeof setTimeout>),
+        run: async () => {
+          const id = collectorRef.current
+          if (!fieldDb || !id) return true
+          const report = issueReporter(fieldDb, id)
+          if (sendConsent) await flushConsents(fieldDb, id, sendConsent, report)
+          const noConsent = new Set((await waitingJobs(fieldDb, id)).map((j) => j.participantId))
+          if (sendMeasure) await flushMeasurements(fieldDb, id, sendMeasure, report, noConsent)
+          const notMeasured = new Set([...noConsent, ...(await fieldDb.ops.where('collectorId').equals(id).toArray()).map((o) => o.participantId)])
+          if (sendPhotos) await flushPhotos(fieldDb, id, sendPhotos, report, notMeasured)
+          const left = await syncSummary(fieldDb, id)
+          return left.consents + left.measurements + left.photos === 0
+        },
+        onRound: (allSent) => {
+          if (allSent && collectorRef.current) writeJson(scopedStore(storage, collectorRef.current), LAST_SENT, new Date().toISOString())
+          bump()
+        },
+      })
+    senderRef.current = sender
+    return () => {
+      sender.stop()
+      if (senderRef.current === sender) senderRef.current = null
+    }
+  }, [bump])
+  useEffect(() => {
+    collectorRef.current = profile?.id ?? null
+    // F7: ask the phone to keep the app's data (not cleared when space runs low).
+    if (profile?.status === 'approved') void keepDataOnPhone(navigator.storage)
+  }, [profile])
   const sendAll = useCallback(
     (collectorId: string) => {
-      if (!fieldDb) return
-      void (async () => {
-        if (sendConsent) await flushConsents(fieldDb, collectorId, sendConsent).catch(() => 0)
-        if (sendMeasure) await flushMeasurements(fieldDb, collectorId, sendMeasure).catch(() => 0)
-        if (sendPhotos) await flushPhotos(fieldDb, collectorId, sendPhotos).catch(() => 0)
-      })().then(bump, bump)
+      collectorRef.current = collectorId
+      void senderRef.current?.request()
     },
-    [bump],
+    [],
   )
   const measureStore: MeasureStore = useMemo(
     () => ({
@@ -592,6 +647,28 @@ export default function App() {
               openPhotos({ participantId: measuring.participantId, sex: measuring.about?.sex ?? null, ageGroup: measuring.ageGroup }, true)
             }
             onBack={() => setView('practice-list')}
+          />
+        ) : undefined
+      }
+      stuck={stuck}
+      updateReady={updateReady}
+      onUpdate={() => void applyUpdate()}
+      sync={
+        profile && fieldDb ? (
+          <SyncScreen
+            online={online}
+            lastSentAt={readJson<string | null>(mine, LAST_SENT, null)}
+            load={async () => {
+              const summary = await syncSummary(fieldDb, profile.id)
+              const rows = await practiceLoad().catch(() => [])
+              const labels = Object.fromEntries(rows.filter((r) => r.practiceNo !== null).map((r) => [r.id, practiceLabel(r.practiceNo)]))
+              return { summary, labels }
+            }}
+            sendNow={async () => {
+              collectorRef.current = profile.id
+              await senderRef.current?.request()
+            }}
+            onBack={home}
           />
         ) : undefined
       }

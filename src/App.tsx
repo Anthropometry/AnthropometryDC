@@ -63,6 +63,7 @@ import {
 } from './lib/measureQueue'
 import { consentApi, listMine, previewWithdraw, withdraw } from './data/consent'
 import { photoApi } from './data/photos'
+import { loadProgress } from './data/progress'
 import { finishPhotos, flushPhotos, savePhoto } from './lib/photoQueue'
 import { PhotoFlow } from './screens/Photos'
 import { browserCameraEnv } from './cameraEnv'
@@ -197,6 +198,7 @@ const adminApi: AdminApi | null = supabase
       listPhoneChecks: () => listPhoneChecks(db),
       previewWithdraw: (r) => previewWithdraw(db, r),
       withdraw: (r) => withdraw(db, r),
+      loadProgress: (p) => loadProgress(db, p),
     }
   : null
 

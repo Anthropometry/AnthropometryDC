@@ -50,7 +50,7 @@ Must-pass checks. A box is ticked only after Ryan tests it on a phone.
 
 ## M7 Admin + export (F8)
 
-- [ ] Progress and coverage views; export skips practice and consents; one backup done
+- [ ] Progress and coverage views; export skips practice and consents; one backup done (backup on hold, Ryan 13 Nov: not enough laptop space yet)
 
 ## Gate A: tool test
 

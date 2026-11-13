@@ -57,6 +57,11 @@ export function InstallHelp({ mode, onInstall }: { mode: InstallMode; onInstall:
   return (
     <section className="rounded-xl border border-slate-200 p-4" aria-label="Install the app">
       <h2 className="mb-2 font-semibold">Install the app</h2>
+      {(mode === 'ios-safari' || mode === 'ios-other-browser') && (
+        <p className="mb-2 rounded-lg bg-amber-50 p-2 text-sm font-semibold text-amber-900">
+          On iPhone, add the app to your Home Screen: otherwise the phone may clear the data saved on it after about a week unused.
+        </p>
+      )}
       {mode === 'android-button' && (
         <button type="button" onClick={onInstall} className="w-full rounded-xl bg-brand py-4 text-lg font-semibold text-white">
           Install app

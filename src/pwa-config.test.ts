@@ -29,6 +29,10 @@ describe('service worker caching', () => {
     expect(pwaOptions.workbox?.globIgnores).toEqual(expect.arrayContaining(['mediapipe/**', 'models/**']))
   })
 
+  it('F7: never reloads by itself (a new version waits; Home offers Restart now)', () => {
+    expect(pwaOptions.registerType).toBe('prompt')
+  })
+
   it('precaches only local build files', () => {
     for (const p of pwaOptions.workbox?.globPatterns ?? []) expect(p).not.toMatch(/https?:/)
   })

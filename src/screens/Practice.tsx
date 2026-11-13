@@ -152,7 +152,7 @@ export function PracticeList({
               </p>
               <p className="text-sm text-slate-600">
                 {r.ageGroup === 'adult' ? 'Adult' : 'Under 18'} · {shortDate(r.createdAt)} ·{' '}
-                {r.waiting ? 'on this phone' : 'saved'}
+                {r.waiting ? 'on this phone · waiting to send' : 'saved'}
               </p>
               <p className="text-sm text-slate-700">
                 {stateOf(r)}

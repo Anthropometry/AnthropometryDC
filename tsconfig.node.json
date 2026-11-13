@@ -9,7 +9,8 @@
     "strict": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "allowImportingTsExtensions": true
   },
   "include": ["vite.config.ts", "vitest.config.ts", "pwa.config.ts", "eslint.config.js", "scripts", "supabase/tests"]
 }

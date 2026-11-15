@@ -165,3 +165,49 @@ deleted. A log keeps only a fingerprint of the code, the date and you, so a repe
 
 If the app says the images could not be deleted, the database part is done. Try again later, or in
 Cloudflare → R2 delete the folders `<id>/` and `practice/<id>/` it shows, in both buckets.
+
+## Progress (F8)
+
+Admin screen → **Progress** (needs a connection): totals by women, men, girls and boys (tap a row for
+age groups), complete per week, one card per collector (what they still have to finish, "Nothing sent
+for 5 days" in amber, practice done, phone check, **Call** / **WhatsApp**), spread of heights, quality
+counts and free storage. Switch **Real participants / Practice** at the top. Counts only.
+
+## Research export (F8)
+
+Run only on your laptop. The data folder must be **outside this project and outside OneDrive** (the
+project folder syncs to OneDrive and GitHub); the script refuses anything else.
+
+One-time setup:
+1. Make a local folder, e.g. `C:\anthro-data`.
+2. Cloudflare → **R2** → **Manage R2 API Tokens** → **Create API token**: permission **Object Read
+   only**, bucket **anthro-collect-photos** only. Copy the **Access Key ID**, the **Secret Access Key**
+   and your **Account ID** (shown once).
+3. Supabase → Project Settings → **API Keys** → copy the **secret** key.
+4. In `C:\anthro-data`, create a file named `.env.admin` with (your values, typed by you):
+
+   ```
+   SUPABASE_URL=https://vafxojfaylrlgupvahdo.supabase.co
+   SUPABASE_SECRET_KEY=...
+   R2_ACCOUNT_ID=...
+   R2_ACCESS_KEY_ID=...
+   R2_SECRET_ACCESS_KEY=...
+   ```
+
+   Never paste these into a chat, an email or this project folder.
+
+Each export, from the project folder:
+
+- Real participants: `npm run export -- --data C:\anthro-data`
+- Test run on practice data (marked PRACTICE everywhere, not for research):
+  `npm run export -- --data C:\anthro-data --include-practice`
+
+It writes `C:\anthro-data\anthro-export-<date>\` (README, CSV files, images, metadata) and, next to it,
+`…-MAPPING-keep-private.csv`, which links export ids back to the database. **Never share the mapping
+file.** The export has no names, signatures, receipt codes or consent records. It stops (and writes
+nothing) if a photo row has no file in storage or a file isn't a proper photo.
+
+## Weekly backup (on hold)
+
+On hold until there is space on a laptop or drive (decided 13 Nov 2026). Until then the data is only in
+Supabase and R2. See specs/F8-admin-export.md, Part 3.

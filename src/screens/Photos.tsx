@@ -42,6 +42,9 @@ function refusalText(e: unknown): string {
   return 'The photo could not be made. Try again.'
 }
 
+/** Amendment B: no tilt reading this long after the camera opens → say the sensor is not answering. */
+export const NO_SENSOR_MS = 2000
+
 const ORDER: PhotoSlot[] = ['front', 'side', 'back']
 const LABEL: Record<PhotoSlot, string> = { front: 'Front photo', side: 'Side photo', back: 'Back photo (optional)' }
 const POSE_TEXT: Record<PhotoSlot, string> = {
@@ -85,6 +88,8 @@ export function PhotoFlow({ participant, env, fromFinish = false, save, finish, 
   const timer = useRef(createSteadyTimer())
   const shooting = useRef(false)
   const lastTilt = useRef<Tilt | null>(null)
+  /** Amendment B: true when the camera has been open NO_SENSOR_MS without a single tilt reading. */
+  const [noSensor, setNoSensor] = useState(false)
 
   // Camera off when leaving the screen; the review image is released.
   useEffect(
@@ -137,7 +142,15 @@ export function PhotoFlow({ participant, env, fromFinish = false, save, finish, 
   useEffect(() => {
     if (step !== 'camera') return
     timer.current.reset()
-    return env.watchTilt((t) => {
+    let gotReading = false
+    const wait = setTimeout(() => {
+      if (!gotReading) setNoSensor(true)
+    }, NO_SENSOR_MS)
+    const stopTilt = env.watchTilt((t) => {
+      if (!gotReading) {
+        gotReading = true
+        setNoSensor(false)
+      }
       lastTilt.current = t
       setTilt(t)
       if (shooting.current) return
@@ -147,9 +160,16 @@ export function PhotoFlow({ participant, env, fromFinish = false, save, finish, 
       setCount(left)
       if (left === 0) void shoot()
     })
+    return () => {
+      clearTimeout(wait)
+      stopTilt()
+    }
   }, [step, env, shoot])
 
   async function openCamera() {
+    // Amendment B: the motion sensor first, inside the tap. An iPhone refuses the request (with no
+    // prompt) once anything has waited, e.g. the camera tools download below.
+    void env.askMotion()
     setError('')
     setBusy(true)
     try {
@@ -309,8 +329,20 @@ export function PhotoFlow({ participant, env, fromFinish = false, save, finish, 
           {framing === undefined ? 'Looking for the person…' : framing === null ? 'This phone checks each photo after taking it.' : framingHint(framing.problem)}
         </div>
         <div role="status" aria-label="Level" className={`rounded-xl border-2 p-3 text-center font-semibold ${level ? 'border-green-600 bg-green-50 text-green-800' : 'border-red-600 bg-red-50 text-red-800'}`}>
-          {levelHint(tilt)}
-          {tilt && (
+          {noSensor ? (
+            <>
+              The phone&apos;s tilt sensor is not answering.
+              <span className="mt-1 block text-xs font-normal">
+                iPhone: Settings → Safari → Motion &amp; Orientation Access on. Android Chrome: ⋮ → Settings → Site settings → Motion sensors → Allow.
+              </span>
+              <button type="button" onClick={() => void env.askMotion()} className="mt-2 rounded-xl border-2 border-red-700 bg-white px-4 py-2 font-semibold text-red-800">
+                Allow tilt sensor
+              </button>
+            </>
+          ) : (
+            levelHint(tilt)
+          )}
+          {!noSensor && tilt && (
             <span className="block text-xs font-normal">
               forward/back {tilt.pitch.toFixed(1)}° · sideways {tilt.roll.toFixed(1)}°
             </span>

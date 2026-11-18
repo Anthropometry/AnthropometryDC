@@ -1,6 +1,6 @@
 # F6: Camera and face blur
 
-**Status:** approved by Ryan, 11 Nov 2026 · **Amendment A (12 Nov 2026): approved by Ryan, 12 Nov 2026; built**, see the end of this file <!-- draft | approved | built | verified — only Ryan sets "approved" -->
+**Status:** approved by Ryan, 11 Nov 2026 · **Amendment A (12 Nov 2026): approved by Ryan, 12 Nov 2026; built** · **Amendment B (18 Nov 2026): approved by Ryan, 18 Nov 2026; parts 1–2 built (`f6b-sensor-fix`), part 3 next**, see the end of this file <!-- draft | approved | built | verified — only Ryan sets "approved" -->
 **Milestone:** M5
 **Branch:** `f6-camera`
 
@@ -380,3 +380,121 @@ No image, no name, as before.
 ### Open questions for Ryan
 
 None. All five answered (12 Nov 2026). Approved by Ryan, 12 Nov 2026.
+
+---
+
+## Amendment B (18 Nov 2026): the tilt sensor never answers, and posture is not checked, **approved by Ryan, 18 Nov 2026**
+
+Where this amendment and the text above disagree, the amendment wins once Ryan approves it.
+
+### Why (Ryan's phone test of PR #17, 18 Nov 2026)
+
+- Two participants, more than 10 minutes each: the person box said the whole person was in the
+  picture, but the level box said **"Hold the phone upright."** the whole time, whatever the
+  collector did. The shutter never fired, so **no photo could be taken**. Consent and measurements
+  were saved.
+- In the person box, "whole person is in the picture" also shows when the arms are down or in the
+  wrong place, so a wrong pose could be saved.
+
+### Cause (from the code; no data read)
+
+- "Hold the phone upright." is not about the angle. It is the message for **no tilt reading at all**.
+  The degrees line ("forward/back … · sideways …") only shows once a reading arrives. The test
+  before Amendment A did show it, so the sensor worked then.
+- Amendment A made the **Open camera** tap first check (and the first time, download) the camera
+  tools, and only **then** ask for the motion sensor. An iPhone only lets a site ask for "Motion &
+  Orientation" **straight after a tap**. After that wait the request is refused without any prompt,
+  so no reading ever comes. Android Chrome needs no request, but a site that was once set to
+  "Motion sensors: Block" also gives no reading.
+- The level lock (±3° / ±2°) is unchanged. The old degrees screen doesn't need to come back: it
+  shows again once readings arrive.
+
+### Changes
+
+**1. Ask for the sensor inside the tap (bug fix).** The **Open camera** tap asks for motion
+permission first, before anything waits, then gets the camera tools ready.
+
+**2. Say so when there is no reading.** If no tilt reading arrives within 2 seconds of the camera
+opening, the level box says **"The phone's tilt sensor is not answering."** and shows a button
+**Allow tilt sensor**. On an iPhone the button asks again (a fresh tap). The screen also gives the
+fix: iPhone: Settings → Safari → Motion & Orientation Access on. Android Chrome: ⋮ → Settings →
+Site settings → Motion sensors → Allow. "Hold the phone upright." is used only when there is a
+reading and it is far off.
+
+**3. Posture check before the shutter (new).** The pose model already finds the shoulders,
+elbows, wrists, hips and ankles about 4 times a second. The auto-shutter also waits for the
+**pose**:
+
+| Photo | Checked | Hint when wrong |
+| --- | --- | --- |
+| Front | both arms away from the body, **20–60°** from the side of the body (aim 30–45°); feet apart (ankles wider than about half the hip width) | "Lift both arms out to the sides a little" / "Lower the arms a little" / "Feet a little apart" |
+| Side | the arm nearer the camera raised forward, the wrist between **about 25° below and 25° above shoulder height** | "Raise the near arm forward to shoulder height" |
+| Back | as front | as front |
+
+- Only the **participant** (the main person) is checked. A point the model marks as unsure (for
+  example a hidden arm in the side view) counts as **not checked yet**, and the hint asks the
+  person to turn as shown.
+- The same check runs **again on the still photo**, before the blur, as a fail-safe. If it fails,
+  nothing is saved: "The pose was not right. Take it again." On a slow phone (slow mode, no live
+  checks) this after-check is the only check.
+- The measured arm angles are stored with each photo (`arm_left_deg`, `arm_right_deg`, `feet_apart`
+  ratio; numbers only), so the research team can filter photos later.
+- The person box turns green only when the whole person **and** the pose are right.
+
+### Data written (changes)
+
+| Where | Change |
+| --- | --- |
+| Supabase `photos` (new migration) | `arm_left_deg`, `arm_right_deg` (0–180, null if not measured), `feet_apart` (ratio, null for side), `pose_check_version` (1) |
+
+### Acceptance criteria (testable)
+
+- [ ] iPhone: the first **Open camera** tap shows the Motion & Orientation prompt, even when the
+      camera tools are downloaded during that tap; after Allow, the degrees line shows.
+- [ ] No reading within 2 s → "The phone's tilt sensor is not answering." + **Allow tilt sensor**;
+      never "Hold the phone upright." without a reading.
+- [ ] Front: arms down → no countdown, "Lift both arms…"; arms in the A shape → countdown.
+- [ ] Side: near arm down → no countdown; arm forward at shoulder height → countdown.
+- [ ] A still photo that fails the pose check is not saved or queued.
+- [ ] The level limits, head blur and fail-safes of Amendment A are unchanged.
+
+### Tests to write
+
+| Test | Tool | Allow or deny |
+| --- | --- | --- |
+| Motion permission asked before any wait in the Open camera tap | React Testing Library | both |
+| No reading in 2 s → sensor message and button; reading → degrees | React Testing Library | both |
+| Arm angle and feet-apart from pose points: front, side, back; unsure points → not checked | Vitest | both |
+| Shutter waits for the pose; the right hint per problem | Vitest | both |
+| Still photo with a wrong pose → refused, nothing queued | Vitest | deny |
+| `photos`: new columns and ranges | PGlite | both |
+
+### Phone test script (amendment)
+
+1. iPhone: Safari → Settings → Clear History and Website Data for the preview (so the prompt shows
+   again) → sign in → a measured participant → **Photos** → Open camera → **Allow** motion → the
+   degrees line shows.
+2. Android: the same; the degrees line shows with no prompt.
+3. Front: participant with arms down → no countdown, arm hint → arms out in the A shape → 3, 2, 1 →
+   blurred photo → Use photo.
+4. Side: near arm down → hint → arm forward at shoulder height → photo.
+5. Turn the sensor off (iPhone: Settings → Safari → Motion & Orientation Access off) → the sensor
+   message and button show.
+
+### Answered (Ryan, 18 Nov 2026)
+
+1. **Phone:** iPhone. On 18 Nov, opening the camera again (camera tools already on the phone, so no
+   wait in the tap) showed the Motion & Orientation prompt and the degrees appeared. This confirms
+   the cause: the wait in the first tap blocks the prompt. Every new collector's first camera use
+   (and any camera-tools update) would hit it, so the fix is still needed.
+2. **Posture limits OK:** front arms 20–60° from the body, side arm within ±25° of shoulder height.
+3. **No manual "Take photo" button.** A phone that gives no tilt reading takes no photos, because
+   a hand-pressed photo would break the standard way every photo is taken.
+
+4. **Approved, sensor first** (18 Nov): parts 1–2 in a short pull request (`f6b-sensor-fix`, on
+   top of `f8-admin-export`) so photos of already measured participants can go on; part 3 (posture)
+   after.
+
+### Open questions for Ryan
+
+None.

@@ -1,5 +1,6 @@
 /**
- * F4 consent wording. PRACTICE text only, drafted from the North Anchor (decided by Ryan, 7 Nov):
+ * F4 consent wording. PRACTICE (test-phase) text only, drafted from the North Anchor (decided by Ryan, 7 Nov;
+ * reworded by Ryan, 18 Nov):
  * the real version (v1) will be the IRB-approved text, added here word for word at Gate B.
  * English only until French and Twi are translated and checked.
  */
@@ -22,14 +23,18 @@ const PRACTICE: ConsentText = {
   body: (forChild) => {
     const you = forChild ? 'your child' : 'you'
     const your = forChild ? "your child's" : 'your'
+    // Ryan's wording, 18 Nov 2026 (DISCUSSION.md): honest that test data may be used later, only if
+    // the ethics committee allows it. Same version label ('practice'); the date tells old and new apart.
     return [
-      'PRACTICE ONLY. This is a practice run; nothing here is used for research.',
-      'Anthro Collect is a student research project at Ashesi University. We are collecting body measurements and photos to train a computer model that estimates body measurements from photos.',
+      'TEST OF THE COLLECTION TOOL. The tool is currently undergoing ethical review. We are testing this app before the real study starts.',
+      'Anthro Collect is a student research project at Ashesi University. We are building a computer model that estimates body measurements from photos. Later, it may be used in an app that tailors and their customers use to estimate clothing measurements from photos.',
       `If ${you} agree${forChild ? 's' : ''}, we will measure ${you} with a tape (for example height, chest, waist and hips) and take two or three photos of ${your} body: from the front, the side and, if ${you} agree${forChild ? 's' : ''}, the back.`,
-      `${your[0].toUpperCase()}${your.slice(1)} face is blurred on this phone before any photo is saved. Nobody sees ${your} face in the data.`,
-      `${your[0].toUpperCase()}${your.slice(1)} name and signature are kept only on this consent form, separate from the measurements and photos. Data collectors cannot read this form after it is signed.`,
-      'Taking part is voluntary. You can stop at any time. You will get a receipt code: give it to the project lead to see or withdraw the data at any time, without giving a reason.',
-      'The results may later help build an app that estimates clothing measurements from photos.',
+      `${your[0].toUpperCase()}${your.slice(1)} whole head (face and hair) is blurred on this phone before any photo is saved. Nobody sees ${your} face in the data.`,
+      forChild
+        ? "Your child's name, your name and signature are kept only on this consent form, separate from the measurements and photos. Data collectors cannot read this form after it is signed."
+        : 'Your name and signature are kept only on this consent form, separate from the measurements and photos. Data collectors cannot read this form after it is signed.',
+      "If the data from this test is good enough, some of it may also be used in the research to build the model, but only if the ethics committee allows it. It will never be put in the app itself or shown to the app's users.",
+      `Taking part is voluntary. ${forChild ? 'Your child' : 'You'} can stop at any time. You will get a receipt code. Give it to the project lead at any time, without giving a reason, to see ${your} data or to have it deleted or kept out of the research.`,
     ]
   },
   tickData: (forChild) =>
@@ -49,7 +54,6 @@ const PRACTICE: ConsentText = {
       ? "Optional: I agree to my child's weight being recorded (on a scale, or as I tell you)."
       : 'Optional: I agree to my weight being recorded (on a scale, or as I tell you).',
   assent: [
-    'We are students from Ashesi University.',
     'We would like to measure you with a tape and take some photos of your body. Your face will be hidden.',
     'It does not hurt. You can say no, and you can stop at any time. Nobody will be upset.',
     'Is it OK with you?',

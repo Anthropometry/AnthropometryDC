@@ -49,8 +49,10 @@ jobs:
       - name: Database-rule tests (PGlite, in memory)
         run: npm run test:db
 
-      - name: npm audit (high and critical fail)
-        run: npm audit --audit-level=high
+      - name: npm audit (high and critical fail; dated exceptions in src/lib/auditGate.ts)
+        run: |
+          npm audit --json > audit.json || true
+          node scripts/audit-gate.ts audit.json
 
       - name: Secret scan (gitleaks)
         run: |

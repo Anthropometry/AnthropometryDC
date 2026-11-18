@@ -54,7 +54,6 @@ const PRACTICE: ConsentText = {
       ? "Optional: I agree to my child's weight being recorded (on a scale, or as I tell you)."
       : 'Optional: I agree to my weight being recorded (on a scale, or as I tell you).',
   assent: [
-    'We are students from Ashesi University.',
     'We would like to measure you with a tape and take some photos of your body. Your face will be hidden.',
     'It does not hurt. You can say no, and you can stop at any time. Nobody will be upset.',
     'Is it OK with you?',

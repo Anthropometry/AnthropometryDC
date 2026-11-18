@@ -48,6 +48,9 @@ describe('consent text (practice only for now)', () => {
     expect(t.body(true).join(' ')).toMatch(/Your child's name, your name and signature/)
     // DENY: the old promise that nothing is used for research is gone, from both versions.
     for (const child of [false, true]) expect(t.body(child).join(' ')).not.toMatch(/PRACTICE ONLY|nothing here is used for research/)
+    // DENY (Ryan, 18 Nov): tailors read the assent to the child, so it never says "We are students".
+    expect(t.assent.join(' ')).not.toMatch(/students|Ashesi/)
+    expect(t.assent[0]).toMatch(/^We would like to measure you/)
     expect(t.tickData(true)).toMatch(/my child/)
     expect(t.tickPhotos(false)).toMatch(/blurred/)
     expect(t.assent.join(' ')).toMatch(/You can say no/)

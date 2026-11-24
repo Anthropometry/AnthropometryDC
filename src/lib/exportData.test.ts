@@ -34,7 +34,7 @@ function input(over: Partial<ExportInput> = {}): ExportInput {
     participants: [person('real-1'), person('real-2', { sex: 'male' }), person('prac-1', { is_practice: true }), person('rej-1', { status: 'rejected' }), person('noconsent')],
     consents: [{ participant_id: 'real-1', consent_version: 'v1' }, { participant_id: 'real-2', consent_version: 'v1' }, { participant_id: 'prac-1', consent_version: 'practice' }, { participant_id: 'rej-1', consent_version: 'v1' }],
     measurements: [m('real-1', 'height', '171.0'), m('real-1', 'waist_girth', '78.4'), m('prac-1', 'height', '160.0')],
-    photos: [f('real-1', 'front'), f('real-1', 'side'), f('real-2', 'front', { blur_version: 1 })],
+    photos: [f('real-1', 'front'), f('real-1', 'side', { blur_version: 3, faces_ignored_on_body: 2 }), f('real-2', 'front', { blur_version: 1 })],
     collectorIds: ['col-0', 'col-1'],
     includePractice: false,
     exportedAt: new Date('2027-01-15T10:00:00Z'),
@@ -58,6 +58,11 @@ describe('research export', () => {
     expect(pcsv).toMatch(/exp-1,false,female,adult,25-34,light,v1,true,true,5 7 1\/2,ftin,171.5,,64.2,scale,C02,TECNO KI5,2026-12-01/)
     expect(r.files.get('measurements.csv')).toMatch(/exp-1,waist_girth,78.4,78.4\|78.4,cm,false/)
     expect(r.files.get('photos.csv')).toMatch(/exp-1,front,images\/exp-1\/front.jpg,1200,1600,7,2026-12-01T09:25:00Z,1.5,0.4,-0.2,60,1540,1,1,true,2/)
+    // Amendment C: version 3 photos are exported with the on-body count; version 2 has it empty; version 1 never.
+    const photosCsv = r.files.get('photos.csv') as string
+    expect(photosCsv.split('\n')[0]).toMatch(/,blur_version,faces_ignored_on_body$/)
+    expect(photosCsv).toMatch(/exp-1,front,.*,true,2,$/m)
+    expect(photosCsv).toMatch(/exp-1,side,.*,true,3,2$/m)
     expect(JSON.parse(r.files.get('metadata/exp-1.json') as string).measurements).toHaveLength(2)
     expect(r.mapping).toBe('export_id,database_id\nexp-1,real-1\nexp-2,real-2\n')
   })

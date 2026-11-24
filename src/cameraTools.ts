@@ -26,7 +26,8 @@ export function loadCameraTools(): Promise<LoadedTools | null> {
       const faceDetector = await vision.FaceDetector.createFromOptions(files, {
         baseOptions: { modelAssetPath: '/models/blaze_face_short_range.tflite', delegate: 'CPU' },
         runningMode: 'IMAGE',
-        minDetectionConfidence: 0.3,
+        // Amendment C (Ryan, 24 Nov): 0.3 blurred shirt prints, arms and shoes; tune on the 20 test photos.
+        minDetectionConfidence: 0.5,
       })
       const options = (masks: boolean) => ({
         baseOptions: { modelAssetPath: '/models/pose_landmarker_lite.task', delegate: 'CPU' as const },

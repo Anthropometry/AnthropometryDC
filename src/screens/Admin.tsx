@@ -6,6 +6,8 @@ import { useEffect, useState, type ButtonHTMLAttributes, type FormEvent, type Re
 import type { CollectorRow, InviteRow } from '../data/collectors'
 import type { PhoneCheckRow } from '../data/fieldwork'
 import type { WithdrawOutcome, WithdrawPreview } from '../data/consent'
+import type { ProgressData } from '../data/progress'
+import { Progress } from './Progress'
 import { cleanReceipt, formatReceipt, isReceiptCode } from '../lib/receipt'
 import { formatInviteCode, inviteMessage, shareInvite, shortDate, type InviteLimits, type ShareEnv } from '../lib/invite'
 import { formatPhone } from '../lib/phone'
@@ -21,6 +23,8 @@ export interface AdminApi {
   listPhoneChecks: () => Promise<PhoneCheckRow[]>
   previewWithdraw: (receipt: string) => Promise<WithdrawPreview>
   withdraw: (receipt: string) => Promise<{ outcome: WithdrawOutcome; participantId?: string }>
+  /** F8: progress counts (admins only; the database checks it). */
+  loadProgress?: (practice: boolean) => Promise<ProgressData>
 }
 
 export interface AdminProps {
@@ -252,6 +256,8 @@ export function Admin({ api, myId, appUrl, shareEnv, onBack }: AdminProps) {
     <Page>
       <Title>Admin</Title>
       <ErrorText>{error}</ErrorText>
+
+      {api.loadProgress && <Progress load={api.loadProgress} collectors={collectors} checks={checks} online={typeof navigator === 'undefined' || navigator.onLine} />}
 
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold">Waiting for approval ({pending.length})</h2>

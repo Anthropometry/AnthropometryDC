@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:db": "vitest run supabase/tests",
+    "export": "node scripts/export.ts",
     "preview:worker": "npm run build && wrangler dev",
     "check:worker": "wrangler deploy --dry-run",
     "db:push": "supabase db push",

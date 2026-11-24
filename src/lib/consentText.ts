@@ -27,7 +27,7 @@ const PRACTICE: ConsentText = {
     // the ethics committee allows it. Same version label ('practice'); the date tells old and new apart.
     return [
       'TEST OF THE COLLECTION TOOL. The tool is currently undergoing ethical review. We are testing this app before the real study starts.',
-      'Anthro Collect is a student research project at Ashesi University. We are building a computer model that estimates body measurements from photos. Later, it may be used in an app that tailors and their customers use to estimate clothing measurements from photos.',
+      'Anthro Collect is a student research project. We are building a computer model that estimates body measurements from photos. Later, it may be used in an app that tailors and their customers use to estimate clothing measurements from photos.',
       `If ${you} agree${forChild ? 's' : ''}, we will measure ${you} with a tape (for example height, chest, waist and hips) and take two or three photos of ${your} body: from the front, the side and, if ${you} agree${forChild ? 's' : ''}, the back.`,
       `${your[0].toUpperCase()}${your.slice(1)} whole head (face and hair) is blurred on this phone before any photo is saved. Nobody sees ${your} face in the data.`,
       forChild

@@ -53,7 +53,7 @@ describe('F4 consent: adult', () => {
     screen.getByText('PRACTICE · not real data')
     fireEvent.click(screen.getByRole('button', { name: 'Adult (18 or older)' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next: consent' }))
-    screen.getByText(/student research project at Ashesi University/)
+    screen.getByText(/Anthro Collect is a student research project. We are building/)
 
     expect(nextBtn('Save consent').disabled).toBe(true)
     fireEvent.click(screen.getByLabelText(/my body measurements/))

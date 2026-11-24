@@ -16,6 +16,10 @@ let db: PGlite
 const as = <T = Record<string, unknown>>(who: string, sql: string, params: unknown[] = []) =>
   runAs<T>(db, who, sql, params)
 
+/** F5 Amendment C: an age as its range (the database keeps only the range). */
+const RANGES: [number, number, string][] = [[8, 9, '8-9'], [10, 12, '10-12'], [13, 14, '13-14'], [15, 17, '15-17'], [18, 24, '18-24'], [25, 34, '25-34'], [35, 44, '35-44'], [45, 54, '45-54'], [55, 64, '55-64'], [65, 200, '65+']]
+const range = (age: number) => RANGES.find(([a, b]) => age >= a && age <= b)![2]
+
 /** A consented practice participant of `who`, with sex and age recorded. */
 async function ready(
   who: string,
@@ -37,10 +41,10 @@ async function ready(
     )
   }
   if (opts.sex !== undefined || opts.age !== undefined) {
-    await as(who, `update public.participants set sex = $2, age_years = $3, clothing = 'light' where id = $1`, [
+    await as(who, `update public.participants set sex = $2, age_range = $3, clothing = 'light' where id = $1`, [
       id,
       opts.sex ?? 'female',
-      opts.age ?? (child ? 10 : 30),
+      range(opts.age ?? (child ? 10 : 30)),
     ])
   }
   return id
@@ -90,7 +94,7 @@ beforeEach(async () => {
 describe('F5: consent first, then sex and age', () => {
   it('DENY: no consent; no sex/age yet; rejected participant', async () => {
     const noConsent = await ready(A, { consent: false })
-    await db.query(`update public.participants set sex = 'female', age_years = 30 where id = $1`, [noConsent])
+    await db.query(`update public.participants set sex = 'female', age_range = '25-34' where id = $1`, [noConsent])
     await expect(measure(A, noConsent, 'neck_girth', ['34.5'])).rejects.toThrow(/no consent/)
     const noSex = await ready(A)
     await expect(measure(A, noSex, 'neck_girth', ['34.5'])).rejects.toThrow(/sex and age/)
@@ -99,12 +103,14 @@ describe('F5: consent first, then sex and age', () => {
     await expect(measure(A, rej, 'neck_girth', ['34.5'])).rejects.toThrow(/rejected/)
   })
 
-  it('age must fit the group; children from 8; collectors cannot set intimate_ok', async () => {
+  it('age group must fit: adult ranges for adults, child ranges (from 8) for children; collectors cannot set intimate_ok', async () => {
     const adult = await ready(A)
-    await expect(as(A, `update public.participants set age_years = 17 where id = $1`, [adult])).rejects.toThrow(/age_fits_group/)
+    await expect(as(A, `update public.participants set age_range = '15-17' where id = $1`, [adult])).rejects.toThrow(/age_range_fits_group/)
+    await expect(as(A, `update public.participants set age_range = '30' where id = $1`, [adult])).rejects.toThrow(/age_range_fits_group/)
     const child = await ready(A, { child: true })
-    await expect(as(A, `update public.participants set age_years = 7 where id = $1`, [child])).rejects.toThrow(/age_fits_group/)
-    await as(A, `update public.participants set age_years = 8 where id = $1`, [child])
+    await expect(as(A, `update public.participants set age_range = '25-34' where id = $1`, [child])).rejects.toThrow(/age_range_fits_group/)
+    await expect(as(A, `update public.participants set age_range = '6-7' where id = $1`, [child])).rejects.toThrow(/age_range_fits_group/)
+    await as(A, `update public.participants set age_range = '8-9' where id = $1`, [child])
     await expect(as(A, `update public.participants set intimate_ok = true where id = $1`, [child])).rejects.toThrow(/permission denied/)
   })
 
@@ -122,7 +128,7 @@ describe('F5: consent first, then sex and age', () => {
 describe('F5: sets by sex and age', () => {
   it('women 24, men 18, children 8-12: 9; 13-17 the full set for their sex', async () => {
     const set = async (sex: string, age: number) =>
-      (await db.query<{ n: number }>(`select array_length(private.measurement_set($1, $2), 1) as n`, [sex, age])).rows[0].n
+      (await db.query<{ n: number }>(`select array_length(private.measurement_set($1, private.range_start($2)), 1) as n`, [sex, range(age)])).rows[0].n
     expect(await set('female', 30)).toBe(24)
     expect(await set('male', 30)).toBe(18)
     expect(await set('female', 10)).toBe(9)
@@ -153,7 +159,7 @@ describe('F5: sets by sex and age', () => {
     const p = await ready(A, { sex: 'female' })
     await measure(A, p, 'neck_girth', ['34.5'])
     await expect(as(A, `update public.participants set sex = 'male' where id = $1`, [p])).rejects.toThrow(/fixed/)
-    await expect(as(A, `update public.participants set age_years = 31 where id = $1`, [p])).rejects.toThrow(/fixed/)
+    await expect(as(A, `update public.participants set age_range = '35-44' where id = $1`, [p])).rejects.toThrow(/fixed/)
   })
 })
 
@@ -251,12 +257,12 @@ describe('F5: Finish and withdrawal', () => {
     await expect(finish()).rejects.toThrow(/1 measurement/)
     await measure(A, kid, 'inseam', [], { skipped: true, skip_reason: 'declined', unit: null })
     await finish()
-    const { rows } = await as<{ measured: boolean; intimate_ok: boolean; sex: string; age_years: number }>(
+    const { rows } = await as<{ measured: boolean; intimate_ok: boolean; sex: string; age_range: string }>(
       A,
-      `select measured, intimate_ok, sex, age_years from public.my_participants(true) where id = $1`,
+      `select measured, intimate_ok, sex, age_range from public.my_participants(true) where id = $1`,
       [kid],
     )
-    expect(rows[0]).toEqual({ measured: true, intimate_ok: true, sex: 'male', age_years: 9 })
+    expect(rows[0]).toEqual({ measured: true, intimate_ok: true, sex: 'male', age_range: '8-9' })
   })
 
   it('withdrawal deletes the measurements too', async () => {
@@ -269,9 +275,9 @@ describe('F5: Finish and withdrawal', () => {
 
   it('real_participants still excludes practice and now has the new columns', async () => {
     const { rows } = await db.query<{ column_name: string }>(
-      `select column_name from information_schema.columns where table_name = 'real_participants' and column_name in ('age_years', 'clothing', 'measurements_done_at')`,
+      `select column_name from information_schema.columns where table_name = 'real_participants' and column_name in ('age_range', 'clothing', 'measurements_done_at', 'age_years')`,
     )
-    expect(rows).toHaveLength(3)
+    expect(rows.map((r) => r.column_name).sort()).toEqual(['age_range', 'clothing', 'measurements_done_at']) // exact age gone
     await ready(A, { sex: 'female' })
     expect((await as(A, `select 1 from public.real_participants`)).rows).toHaveLength(0)
   })

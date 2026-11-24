@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import type { Profile } from '../lib/profile'
 import type { PhoneCheckResult } from '../lib/phonecheck'
 import type { PracticeRow } from '../lib/practice'
-import { AppView, type AppViewProps } from '../App'
+import { AppView, type AppViewProps, parentView } from '../App'
 import { SettingsScreen } from './Settings'
 import { PhoneCheck } from './PhoneCheck'
 import { PracticeList, PracticeNew } from './Practice'
@@ -150,6 +150,7 @@ const result = (over: Partial<PhoneCheckResult> = {}): PhoneCheckResult => ({
   cameraResolution: '1920x1080',
   cameraProblem: null,
   motionOk: true,
+  photosOk: true,
   storageOk: true,
   storageMb: 2048,
   passed: true,
@@ -261,5 +262,13 @@ describe('Admin: phone checks (F2)', () => {
     const b = screen.getByRole('article', { name: 'Phone check: Ann' })
     expect(b.textContent).toContain('Needs attention')
     expect(b.textContent).toContain('Unknown phone')
+  })
+})
+
+describe('phone Back: where each screen goes', () => {
+  it('measuring and photos go back to the practice list; every other screen to Home', () => {
+    expect(parentView('measure')).toBe('practice-list')
+    expect(parentView('photos')).toBe('practice-list')
+    for (const v of ['practice-list', 'practice-new', 'settings', 'check', 'admin', 'invite', 'real', 'join', 'signin'] as const) expect(parentView(v)).toBe('main')
   })
 })

@@ -131,6 +131,15 @@ describe('F4 consent: under 18', () => {
     expect(Object.keys(job.signatures).sort()).toEqual(['assent', 'guardian'])
   })
 
+  it('Back from "Ask the child" returns to the guardian consent, which is kept', () => {
+    const { onSave } = renderFlow()
+    childConsent()
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    screen.getByText('Consent from parent or guardian')
+    expect(screen.getByLabelText<HTMLInputElement>("Parent or guardian's name").value).toBe('Akua Mensah')
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
   it('the child says Yes without a mark: guardian signature only', async () => {
     const { onSave } = renderFlow()
     childConsent()

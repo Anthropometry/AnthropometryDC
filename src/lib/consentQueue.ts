@@ -9,6 +9,7 @@ import Dexie, { type Table } from 'dexie'
 import type { Language } from './profile'
 import type { AgeGroup } from './practice'
 import type { MeasureDraft, MeasureOp } from './measureQueue'
+import type { PhotoDone, QueuedPhoto } from './photoQueue'
 
 export type SignatureSlot = 'participant' | 'guardian' | 'assent'
 export const SIGNATURE_SLOTS: readonly SignatureSlot[] = ['participant', 'guardian', 'assent']
@@ -47,6 +48,9 @@ export class FieldDb extends Dexie {
   drafts!: Table<MeasureDraft, string>
   /** F5: changes waiting to be sent, in order. */
   ops!: Table<MeasureOp, number>
+  /** F6: blurred photos waiting to upload, and "photos done" marks. */
+  photos!: Table<QueuedPhoto, string>
+  photoDone!: Table<PhotoDone, string>
   constructor(name = 'anthro-collect') {
     super(name)
     this.version(1).stores({ jobs: 'participantId, collectorId, createdAt' })
@@ -54,6 +58,13 @@ export class FieldDb extends Dexie {
       jobs: 'participantId, collectorId, createdAt',
       drafts: 'participantId, collectorId',
       ops: '++seq, collectorId, participantId',
+    })
+    this.version(3).stores({
+      jobs: 'participantId, collectorId, createdAt',
+      drafts: 'participantId, collectorId',
+      ops: '++seq, collectorId, participantId',
+      photos: 'key, collectorId, participantId',
+      photoDone: 'participantId, collectorId',
     })
   }
 }

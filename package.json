@@ -8,15 +8,17 @@
     "dev": "vite",
     "lint": "eslint .",
     "typecheck": "tsc -b",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/copy-mediapipe.mjs && tsc -b && vite build",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:db": "vitest run supabase/tests",
     "preview:worker": "npm run build && wrangler dev",
     "check:worker": "wrangler deploy --dry-run",
-    "db:push": "supabase db push"
+    "db:push": "supabase db push",
+    "predev": "node scripts/copy-mediapipe.mjs"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.35",
     "@supabase/supabase-js": "^2.119.0",
     "dexie": "^4.4.7",
     "react": "^19.3.1",

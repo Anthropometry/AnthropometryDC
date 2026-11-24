@@ -13,19 +13,52 @@ import {
   showCm,
   unusual,
   valueTenths,
+  rangesFor,
+  rangeOf,
+  rangeYears,
+  isAgeRange,
+  showRange,
 } from './measurements'
+
+describe('age groups (F5 Amendment C)', () => {
+  it('adults and children get their own ranges; the exact age is never needed', () => {
+    expect(rangesFor('adult')).toEqual(['18-24', '25-34', '35-44', '45-54', '55-64', '65+'])
+    expect(rangesFor('child')).toEqual(['8-9', '10-12', '13-14', '15-17'])
+    expect(showRange('25-34')).toBe('25–34')
+    expect(rangeYears('65+')).toEqual([65, 100])
+    expect(isAgeRange('25-34')).toBe(true)
+    expect(isAgeRange('30')).toBe(false)
+  })
+
+  it('an exact age saved on a phone before the change maps to its range', () => {
+    expect(rangeOf(8)).toBe('8-9')
+    expect(rangeOf(12)).toBe('10-12')
+    expect(rangeOf(13)).toBe('13-14')
+    expect(rangeOf(17)).toBe('15-17')
+    expect(rangeOf(18)).toBe('18-24')
+    expect(rangeOf(34)).toBe('25-34')
+    expect(rangeOf(90)).toBe('65+')
+  })
+
+  it('a range never straddles the change of measurement set (12 → 13)', () => {
+    for (const r of rangesFor('child')) {
+      const [a, b] = rangeYears(r)
+      expect(a <= 12 && b > 12).toBe(false)
+    }
+  })
+})
 
 describe('sets by sex and age (decisions 3 and 5)', () => {
   it('women 24, men 18, children 8–12: 9, 13–17 full set; catalogue order kept', () => {
-    expect(setFor('female', 30)).toHaveLength(24)
-    expect(setFor('male', 30)).toHaveLength(18)
-    expect(setFor('female', 10)).toHaveLength(9)
-    expect(setFor('male', 12)).toEqual(['height', 'neck_girth', 'shoulder_width', 'chest_girth', 'back_length', 'waist_girth', 'hip_girth', 'arm_length', 'inseam'])
-    expect(setFor('female', 13)).toHaveLength(24)
-    expect(setFor('male', 17)).toHaveLength(18)
-    expect(setFor('female', 30)[0]).toBe('height')
-    expect(setFor('female', 30)).not.toContain('chest_girth')
-    expect(setFor('male', 30)).not.toContain('bust_girth')
+    expect(setFor('female', '25-34')).toHaveLength(24)
+    expect(setFor('male', '25-34')).toHaveLength(18)
+    expect(setFor('female', '10-12')).toHaveLength(9)
+    expect(setFor('male', '10-12')).toEqual(['height', 'neck_girth', 'shoulder_width', 'chest_girth', 'back_length', 'waist_girth', 'hip_girth', 'arm_length', 'inseam'])
+    expect(setFor('female', '13-14')).toHaveLength(24)
+    expect(setFor('male', '15-17')).toHaveLength(18)
+    expect(setFor('female', '25-34')[0]).toBe('height')
+    expect(setFor('female', '25-34')).not.toContain('chest_girth')
+    expect(setFor('male', '25-34')).not.toContain('bust_girth')
   })
 
   it('intimate and ×2 lists', () => {
@@ -87,17 +120,17 @@ describe('×2 readings (decision 9)', () => {
 
 describe('unusual values (decision 13)', () => {
   it('adults: wide ranges; inside is fine, outside asks to check', () => {
-    expect(unusual('waist_girth', 780, 'female', 30)).toBeNull()
-    expect(unusual('waist_girth', 1750, 'female', 30)).toEqual([50, 170])
-    expect(unusual('height', 165, 'male', 30)).toEqual([130, 210]) // 16.5 typed instead of 165
+    expect(unusual('waist_girth', 780, 'female', '25-34')).toBeNull()
+    expect(unusual('waist_girth', 1750, 'female', '25-34')).toEqual([50, 170])
+    expect(unusual('height', 165, 'male', '25-34')).toEqual([130, 210]) // 16.5 typed instead of 165
   })
 
   it('children: WHO height by age and sex; core bands for 8–12; adult ranges for other codes at 13–17', () => {
-    expect(expectedRange('height', 'male', 8)).toEqual([110, 145])
-    expect(expectedRange('height', 'female', 15)).toEqual([143, 181])
-    expect(unusual('height', 1500, 'male', 8)).toEqual([110, 145])
-    expect(expectedRange('waist_girth', 'female', 10)).toEqual([40, 110])
-    expect(expectedRange('waist_girth', 'female', 15)).toEqual([50, 170])
+    expect(expectedRange('height', 'male', '8-9')).toEqual([110, 150]) // widest WHO limits across 8 and 9
+    expect(expectedRange('height', 'female', '15-17')).toEqual([143, 182])
+    expect(unusual('height', 1600, 'male', '8-9')).toEqual([110, 150])
+    expect(expectedRange('waist_girth', 'female', '10-12')).toEqual([40, 110])
+    expect(expectedRange('waist_girth', 'female', '15-17')).toEqual([50, 170])
   })
 })
 

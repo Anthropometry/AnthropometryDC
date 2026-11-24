@@ -58,9 +58,37 @@ const FEMALE_ONLY: readonly Code[] = ['bust_girth', 'underbust_girth', 'bust_poi
 export const INTIMATE: ReadonlySet<Code> = new Set(['bust_girth', 'underbust_girth', 'bust_point_distance', 'shoulder_to_bust_point', 'inseam'])
 export const DOUBLE: ReadonlySet<Code> = new Set(['height', 'bust_girth', 'chest_girth', 'waist_girth', 'hip_girth'])
 
+// ---------------------------------------------------------------- age groups (F5 Amendment C)
+
+/** Age is recorded as a range, never the exact age (Ryan, 12 Nov). Stored text uses a plain hyphen. */
+export const ADULT_RANGES = ['18-24', '25-34', '35-44', '45-54', '55-64', '65+'] as const
+/** Children's ranges follow the measurement sets: 8–9 and 10–12 core set; 13–14 and 15–17 full set. */
+export const CHILD_RANGES = ['8-9', '10-12', '13-14', '15-17'] as const
+export type AgeRange = (typeof ADULT_RANGES)[number] | (typeof CHILD_RANGES)[number]
+
+export const rangesFor = (ageGroup: 'adult' | 'child'): readonly AgeRange[] => (ageGroup === 'child' ? CHILD_RANGES : ADULT_RANGES)
+export const isAgeRange = (v: unknown): v is AgeRange => typeof v === 'string' && ([...ADULT_RANGES, ...CHILD_RANGES] as string[]).includes(v)
+/** For display: "25–34", "65+". */
+export const showRange = (r: AgeRange) => r.replace('-', '–')
+
+/** First and last year of a range (65+ → 65–100). */
+export function rangeYears(r: AgeRange): [number, number] {
+  if (r === '65+') return [65, 100]
+  const [a, b] = r.split('-').map(Number)
+  return [a, b]
+}
+
+/** The range an exact age falls in (only for drafts saved on a phone before Amendment C). */
+export function rangeOf(age: number): AgeRange {
+  const all: AgeRange[] = [...CHILD_RANGES, ...ADULT_RANGES]
+  return all.find((r) => age >= rangeYears(r)[0] && age <= rangeYears(r)[1]) ?? (age < 8 ? '8-9' : '65+')
+}
+
+const isChildRange = (r: AgeRange) => rangeYears(r)[0] < 18
+
 /** The set for a participant, in catalogue order (8–12 core; 13+ by sex). */
-export function setFor(sex: Sex, age: number): Code[] {
-  if (age <= 12) return CATALOGUE.map((d) => d.code).filter((c) => CHILD_CORE.includes(c))
+export function setFor(sex: Sex, range: AgeRange): Code[] {
+  if (rangeYears(range)[1] <= 12) return CATALOGUE.map((d) => d.code).filter((c) => CHILD_CORE.includes(c))
   const not = sex === 'female' ? MALE_ONLY : FEMALE_ONLY
   return CATALOGUE.map((d) => d.code).filter((c) => !not.includes(c))
 }
@@ -149,16 +177,20 @@ const CHILD_8_12: Partial<Record<Code, [number, number]>> = {
   waist_girth: [40, 110], hip_girth: [50, 120], arm_length: [35, 65], inseam: [45, 85],
 }
 
-/** The expected range for this participant, in cm. */
-export function expectedRange(code: Code, sex: Sex, age: number): [number, number] {
-  if (age < 18 && code === 'height') return WHO_HEIGHT[sex][Math.min(17, Math.max(8, age))]
-  if (age <= 12) return CHILD_8_12[code] ?? DEF[code].adult
+/**
+ * The expected range for this participant, in cm. Children's height: the widest WHO limits across
+ * the years of the range (lowest of the youngest year, highest of the oldest).
+ */
+export function expectedRange(code: Code, sex: Sex, range: AgeRange): [number, number] {
+  const [from, to] = rangeYears(range)
+  if (isChildRange(range) && code === 'height') return [WHO_HEIGHT[sex][from][0], WHO_HEIGHT[sex][to][1]]
+  if (to <= 12) return CHILD_8_12[code] ?? DEF[code].adult
   return DEF[code].adult
 }
 
 /** Null if fine, otherwise the range it falls outside. */
-export function unusual(code: Code, tenths: number, sex: Sex, age: number): [number, number] | null {
-  const [lo, hi] = expectedRange(code, sex, age)
+export function unusual(code: Code, tenths: number, sex: Sex, range: AgeRange): [number, number] | null {
+  const [lo, hi] = expectedRange(code, sex, range)
   const v = tenths / 10
   return v < lo || v > hi ? [lo, hi] : null
 }
@@ -200,16 +232,45 @@ export function disagreements(code: Code, values: V): Disagreement[] {
 
 // ---------------------------------------------------------------- weight (F5 Amendment A)
 
-/** Expected weight range in kg by age: outside it the app asks to check (can be kept). */
-export function weightRange(age: number): [number, number] {
-  if (age <= 12) return [18, 80]
-  if (age <= 17) return [30, 150]
+/** Expected weight range in kg by age range: outside it the app asks to check (can be kept). */
+export function weightRange(range: AgeRange): [number, number] {
+  const to = rangeYears(range)[1]
+  if (to <= 12) return [18, 80]
+  if (to <= 17) return [30, 150]
   return [30, 200]
 }
 
 /** Null if fine, otherwise the range the weight (in tenths of a kg) falls outside. */
-export function unusualWeight(tenths: number, age: number): [number, number] | null {
-  const [lo, hi] = weightRange(age)
+export function unusualWeight(tenths: number, range: AgeRange): [number, number] | null {
+  const [lo, hi] = weightRange(range)
   const v = tenths / 10
   return v < lo || v > hi ? [lo, hi] : null
+}
+
+// ---------------------------------------------------------------- stated height (F5 Amendment B)
+
+export type ToldUnit = 'cm' | 'ftin'
+
+/** Feet, inches (0–11) and eighths → stored text, e.g. (5, 7, 4) → "5 7 1/2". */
+export function ftinTyped(feet: number, inches: number, eighths: number): string {
+  const f = EIGHTHS[eighths]?.text ?? ''
+  return f ? `${feet} ${inches} ${f}` : `${feet} ${inches}`
+}
+
+/** Stated height → tenths of a cm, or null. Same rules as the database (private.told_height_cm). */
+export function toldHeightTenths(typed: string, unit: ToldUnit): number | null {
+  let tenths: number | null
+  if (unit === 'cm') tenths = readingTenths(typed, 'cm')
+  else {
+    const m = typed.match(/^([1-8]) (\d|1[01])(?: ([1-7])\/([248]))?$/)
+    if (!m) return null
+    let eighths = (Number(m[1]) * 12 + Number(m[2])) * 8
+    if (m[3]) {
+      const ok = (m[4] === '2' && m[3] === '1') || (m[4] === '4' && ['1', '3'].includes(m[3])) || (m[4] === '8' && ['1', '3', '5', '7'].includes(m[3]))
+      if (!ok) return null
+      eighths += (Number(m[3]) * 8) / Number(m[4])
+    }
+    tenths = Math.round((eighths * 3175) / 1000)
+  }
+  return tenths !== null && tenths >= 500 && tenths <= 2500 ? tenths : null
 }

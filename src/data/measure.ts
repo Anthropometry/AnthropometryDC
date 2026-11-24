@@ -30,7 +30,7 @@ export function measureApi(client: SupabaseClient): MeasureApi {
     async saveAbout(participantId: string, about: About) {
       const { data, error } = await client
         .from('participants')
-        .update({ sex: about.sex, age_years: about.ageYears, clothing: about.clothing })
+        .update({ sex: about.sex, age_range: about.ageRange, clothing: about.clothing })
         .eq('id', participantId)
         .select('id')
       if (error) throw error
@@ -55,6 +55,20 @@ export function measureApi(client: SupabaseClient): MeasureApi {
         .update({ weight_kg: w.kg, weight_source: w.kg === null ? null : w.source })
         .eq('id', participantId)
         .select('id')
+      if (error) throw error
+      if (!data || data.length !== 1) throw new Error('not_saved')
+    },
+    async saveToldHeight(participantId: string, typed: string | null, unit: 'cm' | 'ftin' | null) {
+      const { data, error } = await client
+        .from('participants')
+        .update({ height_told_typed: typed, height_told_unit: typed === null ? null : unit })
+        .eq('id', participantId)
+        .select('id')
+      if (error) throw error
+      if (!data || data.length !== 1) throw new Error('not_saved')
+    },
+    async saveToldWeight(participantId: string, kg: number | null) {
+      const { data, error } = await client.from('participants').update({ weight_told_kg: kg }).eq('id', participantId).select('id')
       if (error) throw error
       if (!data || data.length !== 1) throw new Error('not_saved')
     },

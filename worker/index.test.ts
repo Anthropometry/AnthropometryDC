@@ -30,6 +30,8 @@ let owners: Record<string, string>
 let withdrawResult: string | null | number
 /** Participants that are practice records. */
 let practiceIds: Set<string>
+/** Participants whose measurements are finished (F6: photos only after that). */
+let measuredIds: Set<string>
 /** What the database answers to the practice DELETE: rows deleted. */
 let deletedRows: number
 const VALID_TOKEN = 'good-token'
@@ -48,6 +50,7 @@ beforeEach(() => {
   owners = { [PID]: ME }
   withdrawResult = null
   practiceIds = new Set()
+  measuredIds = new Set([PID])
   deletedRows = 1
   vi.stubGlobal(
     'fetch',
@@ -65,7 +68,9 @@ beforeEach(() => {
         const id = q.get('id')?.replace('eq.', '')
         const by = q.get('collector_id')?.replace('eq.', '')
         return Response.json(
-          ok && id && owners[id] && (!by || owners[id] === by) ? [{ id, is_practice: practiceIds.has(id) }] : [],
+          ok && id && owners[id] && (!by || owners[id] === by)
+            ? [{ id, is_practice: practiceIds.has(id), measurements_done_at: measuredIds.has(id) ? '2026-11-10T09:00:00Z' : null }]
+            : [],
         )
       }
       if (input.endsWith('/rest/v1/rpc/admin_withdraw')) {
@@ -274,5 +279,20 @@ describe('F4: DELETE /api/practice/<id>', () => {
     expect((await del()).status).toBe(403)
     signatures.list.mockRejectedValueOnce(new Error('r2 down'))
     expect((await del()).status).toBe(502)
+  })
+})
+
+describe('F6: photos only after measurements', () => {
+  it('DENY: a photo before the measurements are finished gives 409 and stores nothing', async () => {
+    measuredIds = new Set()
+    const res = await upload(`/api/photos/${PID}/front`, JPEG, 'image/jpeg')
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'measurements_not_finished' })
+    expect(photos.put).not.toHaveBeenCalled()
+  })
+
+  it('signatures do not need finished measurements (consent comes first)', async () => {
+    measuredIds = new Set()
+    expect((await upload(`/api/signatures/${PID}/participant`, PNG, 'image/png')).status).toBe(201)
   })
 })

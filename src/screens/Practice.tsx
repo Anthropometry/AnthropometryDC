@@ -11,7 +11,8 @@ export function canMeasure(r: PracticeRow): boolean {
 /** Where a participant stands, in plain words (never their name). */
 export function stateOf(r: PracticeRow): string {
   if (r.status === 'rejected') return 'Stopped: child said no'
-  if (r.measured) return 'Measured'
+  if (r.measured && r.photosDone) return 'Complete'
+  if (r.measured) return 'Measured · photos needed'
   if (r.hasConsent) return 'Consented · waiting for measurements'
   if (r.waiting && r.receiptCode) return 'Consent on this phone'
   return 'No consent yet'
@@ -94,6 +95,7 @@ export function PracticeList({
   onNew,
   onBack,
   onMeasure,
+  onPhotos,
 }: {
   load: () => Promise<PracticeRow[]>
   remove: (row: PracticeRow) => Promise<void>
@@ -101,6 +103,8 @@ export function PracticeList({
   onBack: () => void
   /** F5: open measuring for a consented participant. */
   onMeasure?: (row: PracticeRow) => void
+  /** F6: take the photos of a measured participant. */
+  onPhotos?: (row: PracticeRow) => void
 }) {
   const [rows, setRows] = useState<PracticeRow[]>([])
   const [version, setVersion] = useState(0)
@@ -163,6 +167,15 @@ export function PracticeList({
                   className="rounded-lg border-2 border-brand bg-white px-3 py-2 font-semibold text-brand"
                 >
                   {r.measured ? 'View' : 'Measure'}
+                </button>
+              )}
+              {onPhotos && canMeasure(r) && r.measured && !r.photosDone && (
+                <button
+                  type="button"
+                  onClick={() => onPhotos(r)}
+                  className="rounded-lg border-2 border-brand bg-brand px-3 py-2 font-semibold text-white"
+                >
+                  Photos
                 </button>
               )}
               <button

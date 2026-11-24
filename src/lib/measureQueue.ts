@@ -7,7 +7,7 @@
  * Everything is kept per collector, like consents.
  */
 import type { FieldDb } from './consentQueue'
-import type { Code, Sex, Unit } from './measurements'
+import { isAgeRange, rangeOf, type AgeRange, type Code, type Sex, type Unit } from './measurements'
 import type { AgeGroup } from './practice'
 
 export type Clothing = 'light' | 'medium' | 'heavy'
@@ -16,8 +16,16 @@ export type HeightMethod = 'steel_tape' | 'wall_100'
 
 export interface About {
   sex: Sex
-  ageYears: number
+  /** F5 Amendment C: the age range, never the exact age. */
+  ageRange: AgeRange
   clothing: Clothing
+}
+
+/** About saved on a phone before Amendment C held the exact age: turn it into its range. */
+export function upgradeAbout(a: (Partial<About> & { ageYears?: number }) | null | undefined): About | null {
+  if (!a || !a.sex || !a.clothing) return null
+  const ageRange = isAgeRange(a.ageRange) ? a.ageRange : typeof a.ageYears === 'number' ? rangeOf(a.ageYears) : null
+  return ageRange ? { sex: a.sex, ageRange, clothing: a.clothing } : null
 }
 
 export interface Entry {
@@ -50,6 +58,10 @@ export interface MeasureDraft {
   weightOk?: boolean
   /** Undefined = not asked yet. */
   weight?: Weight
+  /** F5 Amendment B: stated height ({typed: null} = doesn't know); undefined = not asked yet. */
+  toldHeight?: { typed: string | null; unit: 'cm' | 'ftin' | null }
+  /** F5 Amendment B: stated weight in kg (null = doesn't know); undefined = not asked yet. */
+  weightToldKg?: number | null
   about: About | null
   entries: Partial<Record<Code, Entry>>
   finishedAt: string | null
@@ -60,6 +72,8 @@ export type MeasureOp =
   | { seq?: number; collectorId: string; participantId: string; kind: 'entry'; entry: Entry }
   | { seq?: number; collectorId: string; participantId: string; kind: 'finish'; at: string }
   | { seq?: number; collectorId: string; participantId: string; kind: 'weight'; weight: Weight }
+  | { seq?: number; collectorId: string; participantId: string; kind: 'toldHeight'; typed: string | null; unit: 'cm' | 'ftin' | null }
+  | { seq?: number; collectorId: string; participantId: string; kind: 'toldWeight'; kg: number | null }
 
 export interface MeasureApi {
   saveAbout: (participantId: string, about: About) => Promise<void>
@@ -67,17 +81,20 @@ export interface MeasureApi {
   saveEntry: (participantId: string, entry: Entry) => Promise<void>
   finish: (participantId: string) => Promise<void>
   saveWeight: (participantId: string, weight: Weight) => Promise<void>
+  saveToldHeight: (participantId: string, typed: string | null, unit: 'cm' | 'ftin' | null) => Promise<void>
+  saveToldWeight: (participantId: string, kg: number | null) => Promise<void>
 }
 
 export async function loadDraft(db: FieldDb, participantId: string): Promise<MeasureDraft | undefined> {
-  return db.drafts.get(participantId)
+  const d = await db.drafts.get(participantId)
+  return d && d.about ? { ...d, about: upgradeAbout(d.about) } : d
 }
 
 export async function startDraft(
   db: FieldDb,
   d: Pick<MeasureDraft, 'participantId' | 'collectorId' | 'isPractice' | 'ageGroup' | 'intimateOk'> & Partial<MeasureDraft>,
 ): Promise<MeasureDraft> {
-  const existing = await db.drafts.get(d.participantId)
+  const existing = await loadDraft(db, d.participantId)
   if (existing) return existing
   const draft: MeasureDraft = { about: null, entries: {}, finishedAt: null, ...d }
   await db.drafts.put(draft)
@@ -110,6 +127,23 @@ export async function saveWeightLocal(db: FieldDb, draft: MeasureDraft, weight: 
   return next
 }
 
+export async function saveToldHeightLocal(
+  db: FieldDb,
+  draft: MeasureDraft,
+  typed: string | null,
+  unit: 'cm' | 'ftin' | null,
+): Promise<MeasureDraft> {
+  const next = { ...draft, toldHeight: { typed, unit } }
+  await record(db, next, { collectorId: draft.collectorId, participantId: draft.participantId, kind: 'toldHeight', typed, unit })
+  return next
+}
+
+export async function saveToldWeightLocal(db: FieldDb, draft: MeasureDraft, kg: number | null): Promise<MeasureDraft> {
+  const next = { ...draft, weightToldKg: kg }
+  await record(db, next, { collectorId: draft.collectorId, participantId: draft.participantId, kind: 'toldWeight', kg })
+  return next
+}
+
 export async function finishDraft(db: FieldDb, draft: MeasureDraft, at: string): Promise<MeasureDraft> {
   const next = { ...draft, finishedAt: at }
   await record(db, next, { collectorId: draft.collectorId, participantId: draft.participantId, kind: 'finish', at })
@@ -129,9 +163,14 @@ export async function flushMeasurements(db: FieldDb, collectorId: string, api: M
   let sent = 0
   for (const op of ops) {
     try {
-      if (op.kind === 'about') await api.saveAbout(op.participantId, op.about)
+      if (op.kind === 'about') {
+        const about = upgradeAbout(op.about)
+        if (about) await api.saveAbout(op.participantId, about)
+      }
       else if (op.kind === 'entry') await api.saveEntry(op.participantId, op.entry)
       else if (op.kind === 'weight') await api.saveWeight(op.participantId, op.weight)
+      else if (op.kind === 'toldHeight') await api.saveToldHeight(op.participantId, op.typed, op.unit)
+      else if (op.kind === 'toldWeight') await api.saveToldWeight(op.participantId, op.kg)
       else await api.finish(op.participantId)
     } catch {
       break

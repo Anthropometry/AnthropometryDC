@@ -1,6 +1,6 @@
 # F6: Camera and face blur
 
-**Status:** approved by Ryan, 11 Nov 2026 · **Amendment A (12 Nov 2026): approved by Ryan, 12 Nov 2026; built** · **Amendment B (18 Nov 2026): approved by Ryan, 18 Nov 2026; parts 1–2 built (`f6b-sensor-fix`), part 3 next** · **Amendment C (24 Nov 2026): approved by Ryan, 24 Nov 2026; built (`f6c-blur-body`), migration not applied**, see the end of this file <!-- draft | approved | built | verified — only Ryan sets "approved" -->
+**Status:** approved by Ryan, 11 Nov 2026 · **Amendment A (12 Nov 2026): approved by Ryan, 12 Nov 2026; built** · **Amendment B (18 Nov 2026): approved by Ryan, 18 Nov 2026; parts 1–2 built (`f6b-sensor-fix`), part 3 next** · **Amendment C (24 Nov 2026): approved by Ryan, 24 Nov 2026; built (`f6c-blur-body`), migration applied 24 Nov**, see the end of this file <!-- draft | approved | built | verified — only Ryan sets "approved" -->
 **Milestone:** M5
 **Branch:** `f6-camera`
 
@@ -565,7 +565,7 @@ itself is blurred by the first layer (the body model), which worked in all three
 ### Decided (Ryan, 24 Nov 2026)
 
 Approved as written. Built in `f6c-blur-body`: migration `20261124000000_f6c_blur_body.sql`
-(**not applied**: `supabase db push` after Ryan approves in chat). Version 2 photos still waiting
+(**applied 24 Nov 2026** after Ryan's approval in chat). Version 2 photos still waiting
 on phones are sent as before; the export takes versions 2 and 3.
 
 ### Open questions for Ryan

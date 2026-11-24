@@ -198,7 +198,7 @@ describe('routing by status', () => {
     render(<AppView {...base(P)} online={false} />)
     screen.getByText('Hello Ama')
     screen.getByText('You are offline. Your work is kept on this phone.')
-    expect(screen.getByRole('status', { name: 'Sync' }).textContent).toBe('Offline: saved on this phone')
+    expect(screen.getByRole('button', { name: /^Sync: Offline: saved on this phone/ })).toBeTruthy()
   })
 
   it.each(['rejected', 'disabled'] as const)('%s → not active', (status) => {

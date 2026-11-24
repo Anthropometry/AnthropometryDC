@@ -10,7 +10,8 @@ import type { VitePWAOptions } from 'vite-plugin-pwa'
 /** Must match CAMERA_CACHE in src/lib/cameraFiles.ts (tested). */
 export const CAMERA_CACHE_NAME = 'camera-tools-0.10.35-v1'
 export const pwaOptions: Partial<VitePWAOptions> = {
-  registerType: 'autoUpdate',
+  // F7: never reload by itself during a participant; Home offers Restart now (src/lib/update.ts).
+  registerType: 'prompt',
   includeAssets: ['icons/apple-touch-icon.png', 'icons/icon.svg'],
   manifest: {
     name: 'Anthro Collect — Ashesi student research',

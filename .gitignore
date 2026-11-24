@@ -15,3 +15,4 @@ Thumbs.db
 
 # MediaPipe runtime, copied from node_modules at build (scripts/copy-mediapipe.mjs)
 public/mediapipe/
+audit.json

@@ -24,6 +24,7 @@ function fakeEnv(over: Partial<CameraEnv> = {}) {
   let bodyFeed: ((f: Framing | null) => void) | null = null
   let clock = 0
   const env: CameraEnv = {
+    askMotion: vi.fn(async () => true),
     prepare: vi.fn(async () => 'ready' as const),
     start: vi.fn(async () => vi.fn()),
     watchBody: vi.fn((_v, _z, cb) => {
@@ -39,7 +40,7 @@ function fakeEnv(over: Partial<CameraEnv> = {}) {
         feed = null
       }
     }),
-    grab: vi.fn(async () => ({ jpeg: new Uint8Array([0xff, 0xd8, 0xff]), width: 1200, height: 1600, bytes: 3, facesDetected: 1, peopleDetected: 1, headTopY: 40, heelY: 1500, blurVersion: 2 as const })),
+    grab: vi.fn(async () => ({ jpeg: new Uint8Array([0xff, 0xd8, 0xff]), width: 1200, height: 1600, bytes: 3, facesDetected: 1, peopleDetected: 1, headTopY: 40, heelY: 1500, facesIgnoredOnBody: 0, blurVersion: 3 as const })),
     now: () => clock,
     phoneModel: null,
     ...over,
@@ -272,5 +273,74 @@ describe('list (F6)', () => {
     const c = screen.getByRole('listitem', { name: 'Practice P-0003' })
     within(c).getByText(/Complete/)
     expect(within(c).queryByRole('button', { name: 'Photos' })).toBeNull()
+  })
+})
+
+describe('Amendment B: the tilt sensor', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('asks for the motion sensor first in the Open camera tap, before the camera tools download waits', async () => {
+    const order: string[] = []
+    let finishDownload: (r: 'ready') => void = () => {}
+    const s = setup({
+      askMotion: vi.fn(async () => {
+        order.push('askMotion')
+        return true
+      }),
+      prepare: vi.fn(() => {
+        order.push('prepare')
+        return new Promise<'ready'>((r) => (finishDownload = r))
+      }),
+    })
+    fireEvent.click(btn('Take photos'))
+    fireEvent.click(btn('Open the camera'))
+    // Asked synchronously inside the tap, while the download is still running.
+    expect(order).toEqual(['askMotion', 'prepare'])
+    await act(async () => finishDownload('ready'))
+    await waitFor(() => expect(s.env.watchTilt).toHaveBeenCalled())
+    expect(s.env.start).toHaveBeenCalled()
+  })
+
+  it('DENY: no reading for 2 s → "not answering" and Allow tilt sensor, never "Hold the phone upright"; a reading clears it', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const s = setup()
+    await toCamera(s.env)
+    const box = () => screen.getByRole('status', { name: 'Level' })
+    expect(within(box()).queryByText(/not answering/)).toBeNull()
+    await act(async () => vi.advanceTimersByTime(2100))
+    within(box()).getByText(/tilt sensor is not answering/)
+    expect(box().textContent).not.toMatch(/Hold the phone upright/)
+    within(box()).getByText(/Motion & Orientation Access/)
+    within(box()).getByText(/Motion sensors → Allow/)
+    expect(s.env.askMotion).toHaveBeenCalledTimes(1)
+    fireEvent.click(within(box()).getByRole('button', { name: 'Allow tilt sensor' }))
+    expect(s.env.askMotion).toHaveBeenCalledTimes(2)
+    s.tilt(LEVEL, 5000)
+    expect(within(box()).queryByText(/not answering/)).toBeNull()
+    within(box()).getByText(/forward\/back 0\.3°/)
+    // No countdown is possible while there is no reading; it starts once readings come.
+    expect(s.env.grab).not.toHaveBeenCalled()
+  })
+
+  it('a reading within 2 s → no sensor message; the degrees show', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const s = setup()
+    await toCamera(s.env)
+    s.tilt(LEVEL, 100)
+    await act(async () => vi.advanceTimersByTime(3000))
+    const box = screen.getByRole('status', { name: 'Level' })
+    expect(within(box).queryByText(/not answering/)).toBeNull()
+    within(box).getByText(/forward\/back 0\.3°/)
+  })
+
+  it('a reading with the phone flat (no usable tilt) still counts as answering: "Hold the phone upright"', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const s = setup()
+    await toCamera(s.env)
+    s.tilt(null, 100)
+    await act(async () => vi.advanceTimersByTime(3000))
+    const box = screen.getByRole('status', { name: 'Level' })
+    expect(within(box).queryByText(/not answering/)).toBeNull()
+    within(box).getByText(/Hold the phone upright/)
   })
 })

@@ -14,7 +14,12 @@ import { loadCameraTools } from './cameraTools'
 export interface CameraEnv {
   /** One-time download of the camera tools (about 18 MB); 'ready' at once when already on the phone. */
   prepare: (onProgress: (done: number, total: number) => void) => Promise<PrepareResult>
-  /** Ask for the motion sensor (iPhone needs a tap first) and the back camera into the video. Returns stop. */
+  /**
+   * Ask for the motion sensor. iPhone only allows this straight after a tap, so it must be called
+   * first in the tap, before anything waits (Amendment B). Resolves false if refused.
+   */
+  askMotion: () => Promise<boolean>
+  /** The back camera into the video. Returns stop. */
   start: (video: HTMLVideoElement) => Promise<() => void>
   /** Tilt readings until the returned function is called. */
   watchTilt: (cb: (t: Tilt | null) => void) => () => void
@@ -44,12 +49,22 @@ export function browserCameraEnv(): CameraEnv {
       const openCache = typeof caches !== 'undefined' ? () => caches.open(CAMERA_CACHE) : null
       return prepareCameraFiles(supported, openCache, (u) => fetch(u, { cache: 'no-store' }), onProgress)
     },
-    async start(video) {
-      // iPhone: motion permission must be asked inside the tap, before anything else waits.
+    askMotion() {
+      // Both requests are made now, synchronously inside the tap; only the answers are awaited.
       const O = (typeof DeviceOrientationEvent !== 'undefined' ? DeviceOrientationEvent : undefined) as WithPermission | undefined
       const M = (typeof DeviceMotionEvent !== 'undefined' ? DeviceMotionEvent : undefined) as WithPermission | undefined
-      const asks = [O?.requestPermission?.(), M?.requestPermission?.()].filter(Boolean)
-      await Promise.all(asks.map((p) => p!.catch(() => 'denied')))
+      const asks: Promise<string>[] = []
+      for (const ask of [O?.requestPermission, M?.requestPermission]) {
+        if (!ask) continue
+        try {
+          asks.push(ask().catch(() => 'denied'))
+        } catch {
+          asks.push(Promise.resolve('denied'))
+        }
+      }
+      return Promise.all(asks).then((a) => a.every((r) => r === 'granted'))
+    },
+    async start(video) {
       void loadCameraTools() // start loading while the camera opens
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,

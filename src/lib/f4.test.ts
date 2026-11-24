@@ -32,16 +32,27 @@ describe('receipt codes', () => {
 })
 
 describe('consent text (practice only for now)', () => {
-  it('practice text starts with PRACTICE, names Ashesi, covers blur, withdrawal and future app use', () => {
+  it('practice text (Ryan, 18 and 24 Nov): a test of the tool, a student research project (Ashesi not named), whole head blurred, possible later use only if the ethics committee allows, deletion by receipt code', () => {
     const t = consentText('practice')!
     const adult = t.body(false).join(' ')
-    expect(t.body(false)[0]).toMatch(/^PRACTICE ONLY/)
-    expect(adult).toMatch(/student research project at Ashesi University/)
-    expect(adult).toMatch(/face is blurred/)
+    expect(t.body(false)[0]).toMatch(/^TEST OF THE COLLECTION TOOL\. The tool is currently undergoing ethical review\./)
+    expect(adult).toMatch(/Anthro Collect is a student research project\. /)
+    expect(adult).toMatch(/whole head \(face and hair\) is blurred/)
+    expect(adult).toMatch(/may also be used in the research to build the model, but only if the ethics committee allows it/)
+    expect(adult).toMatch(/never be put in the app itself/)
     expect(adult).toMatch(/receipt code/)
-    expect(adult).toMatch(/withdraw/)
+    expect(adult).toMatch(/deleted or kept out of the research/)
     expect(adult).toMatch(/app/)
     expect(t.body(true).join(' ')).toMatch(/your child/)
+    expect(t.body(true).join(' ')).toMatch(/Your child can stop at any time/)
+    expect(t.body(true).join(' ')).toMatch(/Your child's name, your name and signature/)
+    // DENY: the old promise that nothing is used for research is gone, from both versions.
+    for (const child of [false, true]) expect(t.body(child).join(' ')).not.toMatch(/PRACTICE ONLY|nothing here is used for research/)
+    // DENY (Ryan, 18 Nov): tailors read the assent to the child, so it never says "We are students".
+    expect(t.assent.join(' ')).not.toMatch(/students|Ashesi/)
+    // DENY (Ryan, 24 Nov): the consent text read to participants doesn't name Ashesi University.
+    for (const child of [false, true]) expect(t.body(child).join(' ')).not.toMatch(/Ashesi/)
+    expect(t.assent[0]).toMatch(/^We would like to measure you/)
     expect(t.tickData(true)).toMatch(/my child/)
     expect(t.tickPhotos(false)).toMatch(/blurred/)
     expect(t.assent.join(' ')).toMatch(/You can say no/)

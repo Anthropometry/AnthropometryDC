@@ -6,14 +6,15 @@
  *    someone else in the picture → the photo is refused (nothing is made).
  * 3. The top of the head and the heels are measured (from the body outline), before any blur.
  * 4. Blurred, all of: every person's whole head; every face the face detector finds anywhere in
- *    the frame (searched in overlapping tiles); the fixed face zone of the outline.
+ *    the frame (searched in overlapping tiles), except finds on the participant's own body below the
+ *    neck (Amendment C: a face can't be there); the fixed face zone of the outline.
  * 5. Only then is a JPEG made, fresh from the canvas (no place, time or camera data).
  * 6. The canvas is emptied.
  * Fail closed: no camera tools, or any error in them → no photo. The result is registered as
  * blurred; the photo queue accepts nothing else. There is no switch to turn the blur off.
  */
 import { boxesToBlur, enlarge, frameRect, mosaic, tiles, toFrame, type Box } from './blur'
-import { checkFraming, headBox, headTopAndHeels, mainPerson, type FramingProblem, type Mask, type Person } from './pose'
+import { checkFraming, headBox, headTopAndHeels, mainPerson, splitFacesOnBody, type FramingProblem, type Mask, type Person } from './pose'
 
 export interface BlurredPhoto {
   readonly jpeg: Uint8Array
@@ -25,8 +26,10 @@ export interface BlurredPhoto {
   /** Top of the head and bottom of the heels, photo pixels, measured before the blur. */
   readonly headTopY: number
   readonly heelY: number
-  /** 2 = Amendment A (whole-head blur from the pose model). */
-  readonly blurVersion: 2
+  /** Face-detector finds not blurred because they were on the participant's body below the neck. */
+  readonly facesIgnoredOnBody: number
+  /** 3 = Amendment C (2 = Amendment A, whole-head blur from the pose model). */
+  readonly blurVersion: 3
 }
 
 /** Finds faces in the given canvas; boxes in that canvas's pixels. */
@@ -131,7 +134,8 @@ export async function capture(
     const framing = checkFraming(pose.people, width, height)
     if (framing.problem) throw new CaptureRefused(framing.problem)
     const main = mainPerson(pose.people, width, height)!
-    const marks = headTopAndHeels(main, pose.masks[pose.people.indexOf(main)] ?? null, width, height)
+    const mainMask = pose.masks[pose.people.indexOf(main)] ?? null
+    const marks = headTopAndHeels(main, mainMask, width, height)
     if (!marks) throw new CaptureRefused('no_person')
 
     // Faces anywhere (fail closed on any error).
@@ -142,10 +146,13 @@ export async function capture(
       throw new CaptureRefused('tools_failed')
     }
 
-    // Blur: every head (whole), every face found (enlarged), the fixed face zone.
+    // Amendment C: finds on the participant's own body below the neck are not faces.
+    const { keep, ignored } = splitFacesOnBody(faces, main, mainMask, width, height)
+
+    // Blur: every head (whole), every other face found (enlarged), the fixed face zone.
     const heads = pose.people.map((p) => headBox(p, width, height)).filter((b): b is Box => b !== null)
     const img = ctx.getImageData(0, 0, width, height)
-    for (const box of [...heads.map((h) => enlarge(h, 1.15, width, height)), ...boxesToBlur(faces, width, height)]) mosaic(img, box)
+    for (const box of [...heads.map((h) => enlarge(h, 1.15, width, height)), ...boxesToBlur(keep, width, height)]) mosaic(img, box)
     ctx.putImageData(img, 0, 0)
 
     // Only now a file, fresh from the canvas (no EXIF), at most 4 MB.
@@ -165,7 +172,8 @@ export async function capture(
       peopleDetected: pose.people.length,
       headTopY: marks.headTopY,
       heelY: marks.heelY,
-      blurVersion: 2 as const,
+      facesIgnoredOnBody: ignored.length,
+      blurVersion: 3 as const,
     })
     minted.add(photo)
     return photo

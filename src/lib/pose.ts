@@ -202,3 +202,34 @@ export function headTopAndHeels(
   if (!(headTopY >= 0 && heelY < height && headTopY < heelY)) return null
   return { headTopY, heelY }
 }
+
+/**
+ * F6 Amendment C (Ryan, 24 Nov): a face can't be on the participant's own body below the neck. The
+ * face detector's boxes whose centre is inside the participant's body outline AND below both
+ * shoulders are false finds (shirt prints, arms, shoes) and are not blurred; the rest are. The
+ * participant's head is blurred by the body model whatever happens here.
+ * Fail closed: without an outline or without both shoulders, nothing is ignored.
+ */
+export function splitFacesOnBody(
+  faces: readonly Box[],
+  main: Person,
+  mask: Mask | null,
+  width: number,
+  height: number,
+  threshold = 0.5,
+): { keep: Box[]; ignored: Box[] } {
+  const sh = points(main, SHOULDERS, width, height)
+  if (!mask || sh.length !== 2 || !(mask.width > 0 && mask.height > 0)) return { keep: [...faces], ignored: [] }
+  const shoulderLine = Math.max(sh[0].y, sh[1].y)
+  const keep: Box[] = []
+  const ignored: Box[] = []
+  for (const f of faces) {
+    const cx = f.x + f.w / 2
+    const cy = f.y + f.h / 2
+    const col = Math.floor((cx / width) * mask.width)
+    const row = Math.floor((cy / height) * mask.height)
+    const inside = col >= 0 && col < mask.width && row >= 0 && row < mask.height && mask.data[row * mask.width + col] >= threshold
+    ;(inside && cy > shoulderLine ? ignored : keep).push(f)
+  }
+  return { keep, ignored }
+}

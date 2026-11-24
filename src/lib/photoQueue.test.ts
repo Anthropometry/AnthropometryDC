@@ -51,7 +51,7 @@ function api(over: Partial<PhotoApi> = {}) {
 describe('photo queue', () => {
   it('DENY: an unblurred image (not made by capture) can never be queued', async () => {
     db = new FieldDb(`t-${Math.random()}`)
-    const fake = { jpeg: new Uint8Array([0xff, 0xd8, 0xff]), width: 1200, height: 1600, bytes: 3, facesDetected: 0, peopleDetected: 1, headTopY: 1, heelY: 2, blurVersion: 2 as const }
+    const fake = { jpeg: new Uint8Array([0xff, 0xd8, 0xff]), width: 1200, height: 1600, bytes: 3, facesDetected: 0, peopleDetected: 1, headTopY: 1, heelY: 2, facesIgnoredOnBody: 2, blurVersion: 3 as const }
     await expect(savePhoto(db, who('p1', 'front'), { photo: fake, levelPitch: 0, levelRoll: 0, a4Confirmed: true, faceHidden: true, takenAt: 'x', zoom: 1 })).rejects.toThrow('not_blurred')
     expect(await db.photos.count()).toBe(0)
   })
@@ -77,6 +77,16 @@ describe('photo queue', () => {
     expect(await db.photoDone.count()).toBe(0)
   })
 
+  it('Amendment C: a version 2 photo queued before the update is still sent (version 2, no on-body count)', async () => {
+    db = new FieldDb(`t-${Math.random()}`)
+    await savePhoto(db, who('p1', 'front'), await shot())
+    const row = (await db.photos.get('p1:front'))!
+    await db.photos.put({ ...row, blurVersion: 2, facesIgnoredOnBody: undefined } as never)
+    const { api: a } = api()
+    await flushPhotos(db, 'me', a)
+    expect(vi.mocked(a.saveRow).mock.calls[0][2]).toMatchObject({ blurVersion: 2, facesIgnoredOnBody: null })
+  })
+
   it('upload → row for each photo, then "done"; each removed only after the server confirms', async () => {
     db = new FieldDb(`t-${Math.random()}`)
     await savePhoto(db, who('p1', 'front'), await shot())
@@ -87,7 +97,7 @@ describe('photo queue', () => {
     const { api: a, calls } = api()
     expect(await flushPhotos(db, 'me', a)).toBe(3)
     expect(calls).toEqual(['upload:p1:front', 'row:p1:front', 'upload:p1:side', 'row:p1:side', 'done:p1'])
-    expect(vi.mocked(a.saveRow).mock.calls[0][2]).toMatchObject({ width: 1200, height: 1600, bytes: 4, levelPitch: 0.4, levelRoll: -0.3, a4Confirmed: true, phoneModel: 'TECNO KI5', zoom: 1.8, blurVersion: 2, peopleDetected: 1, faceHiddenConfirmed: true, heelY: 1500 })
+    expect(vi.mocked(a.saveRow).mock.calls[0][2]).toMatchObject({ width: 1200, height: 1600, bytes: 4, levelPitch: 0.4, levelRoll: -0.3, a4Confirmed: true, phoneModel: 'TECNO KI5', zoom: 1.8, blurVersion: 3, facesIgnoredOnBody: 0, peopleDetected: 1, faceHiddenConfirmed: true, heelY: 1500 })
     expect(await waitingPhotos(db, 'me')).toBe(0)
   })
 
@@ -169,7 +179,7 @@ describe('photo server calls', () => {
     }
     return { c: c as unknown as SupabaseClient, chain, updates }
   }
-  const meta = { width: 1200, height: 1600, bytes: 4, takenAt: 't', facesDetected: 1, levelPitch: 0.4, levelRoll: -0.3, phoneModel: null, a4Confirmed: true, zoom: 1.5, blurVersion: 2 as const, peopleDetected: 1, faceHiddenConfirmed: true as const, headTopY: 60, heelY: 1500 }
+  const meta = { width: 1200, height: 1600, bytes: 4, takenAt: 't', facesDetected: 1, levelPitch: 0.4, levelRoll: -0.3, phoneModel: null, a4Confirmed: true, zoom: 1.5, blurVersion: 3 as const, facesIgnoredOnBody: 0, peopleDetected: 1, faceHiddenConfirmed: true as const, headTopY: 60, heelY: 1500 }
 
   it('upload: PUT /api/photos/<id>/<slot>, JPEG, with the token; anything but 201 fails', async () => {
     const fetchFn = vi.fn(async () => new Response(null, { status: 201 }))
@@ -182,7 +192,7 @@ describe('photo server calls', () => {
   it('row: insert; on a duplicate (retake / retry) update the metadata only', async () => {
     const { c, chain, updates } = client({ code: '23505', message: 'duplicate key value violates unique constraint "photos_participant_id_slot_key"' })
     await photoApi(c).saveRow('p1', 'front', meta)
-    expect(chain.insert).toHaveBeenCalledWith(expect.objectContaining({ participant_id: 'p1', slot: 'front', a4_confirmed: true, level_pitch: 0.4, zoom: 1.5, blur_version: 2, people_detected: 1, face_hidden_confirmed: true, head_top_y: 60, heel_y: 1500 }))
+    expect(chain.insert).toHaveBeenCalledWith(expect.objectContaining({ participant_id: 'p1', slot: 'front', a4_confirmed: true, level_pitch: 0.4, zoom: 1.5, blur_version: 3, faces_ignored_on_body: 0, people_detected: 1, face_hidden_confirmed: true, head_top_y: 60, heel_y: 1500 }))
     expect(updates[0]).not.toHaveProperty('participant_id')
     expect(updates[0]).not.toHaveProperty('slot')
   })

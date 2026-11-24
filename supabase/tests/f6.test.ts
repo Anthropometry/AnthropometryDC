@@ -96,6 +96,39 @@ describe('F6 Amendment A: photo checks', () => {
   })
 })
 
+describe('F6 Amendment C: blur version 3 with the on-body count', () => {
+  it('ALLOW: a version-3 photo with faces_ignored_on_body; a version-2 photo (queued before the update) still accepted', async () => {
+    const p = await participant(A, { measured: true })
+    await photo(A, p, 'front', { blur_version: 3, faces_ignored_on_body: 2 })
+    await photo(A, p, 'side')
+    const { rows } = await as<{ slot: string; blur_version: number; faces_ignored_on_body: number | null }>(
+      A,
+      `select slot, blur_version, faces_ignored_on_body from public.photos where participant_id = $1 order by slot`,
+      [p],
+    )
+    expect(rows).toEqual([
+      { slot: 'front', blur_version: 3, faces_ignored_on_body: 2 },
+      { slot: 'side', blur_version: 2, faces_ignored_on_body: null },
+    ])
+  })
+
+  it('DENY: version 3 without the count, a count out of range, version 4, and the old blur still refused', async () => {
+    const p = await participant(A, { measured: true })
+    await expect(photo(A, p, 'front', { blur_version: 3 })).rejects.toThrow(/photos_v3_complete/)
+    await expect(photo(A, p, 'front', { blur_version: 3, faces_ignored_on_body: 21 })).rejects.toThrow(/faces_ignored_on_body/)
+    await expect(photo(A, p, 'front', { blur_version: 3, faces_ignored_on_body: -1 })).rejects.toThrow(/faces_ignored_on_body/)
+    await expect(photo(A, p, 'front', { blur_version: 4, faces_ignored_on_body: 0 })).rejects.toThrow(/photos_blur_version_check|update the app/)
+    await expect(photo(A, p, 'front', { blur_version: 1 })).rejects.toThrow(/update the app/)
+  })
+
+  it('ALLOW a retake to version 3; DENY another collector', async () => {
+    const p = await participant(A, { measured: true })
+    await photo(A, p, 'side')
+    await as(A, `update public.photos set blur_version = 3, faces_ignored_on_body = 1 where participant_id = $1`, [p])
+    await expect(photo(B, p, 'front', { blur_version: 3, faces_ignored_on_body: 0 })).rejects.toThrow(/row-level security/)
+  })
+})
+
 describe('F5 Amendment B: stated height and weight', () => {
   const told = async (id: string) =>
     (await db.query<{ cm: string | null }>(`select height_told_cm::text as cm from public.participants where id = $1`, [id])).rows[0].cm

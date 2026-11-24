@@ -64,6 +64,8 @@ export interface FRow {
   faces_detected: number
   a4_confirmed: boolean
   blur_version: number
+  /** Amendment C: detector finds on the participant's body not blurred (null before version 3). */
+  faces_ignored_on_body?: number | null
   phone_model: string | null
 }
 
@@ -127,6 +129,8 @@ photos.csv  one row per photo
   export_id, slot (front/side/back), file, width, height, bytes, taken_at, zoom (digital zoom, 1-4),
   level_pitch_deg, level_roll_deg (phone tilt at the shutter), head_top_y, heel_y (pixels from the
   top, measured before the blur), people_detected, faces_detected, a4_confirmed, blur_version
+  (2 or 3), faces_ignored_on_body (version 3: face-detector finds on the participant's body below
+  the neck, not blurred; empty for version 2)
 images/<export_id>/front.jpg, side.jpg, back.jpg   3:4 portrait JPEGs, head blurred
 metadata/<export_id>.json   everything above for one participant
 `
@@ -154,7 +158,7 @@ export async function buildExport(
   for (const p of people) {
     const eid = ids.get(p.id)!
     const ms = input.measurements.filter((m) => m.participant_id === p.id).sort((a, b) => a.code.localeCompare(b.code))
-    const fs = input.photos.filter((f) => f.participant_id === p.id && f.blur_version === 2).sort((a, b) => a.slot.localeCompare(b.slot))
+    const fs = input.photos.filter((f) => f.participant_id === p.id && (f.blur_version === 2 || f.blur_version === 3)).sort((a, b) => a.slot.localeCompare(b.slot))
     const phone = fs.find((f) => f.phone_model)?.phone_model ?? null
     const participant = {
       export_id: eid,
@@ -219,6 +223,7 @@ export async function buildExport(
         faces_detected: f.faces_detected,
         a4_confirmed: f.a4_confirmed,
         blur_version: f.blur_version,
+        faces_ignored_on_body: f.faces_ignored_on_body ?? null,
       }
       photos.push(photo)
       fRows.push([eid, ...Object.values(photo)])
@@ -238,7 +243,7 @@ export async function buildExport(
   files.set('measurements.csv', csv(['export_id', 'code', 'value_cm', 'readings_cm', 'unit_typed', 'skipped', 'skip_reason', 'unusual_confirmed', 'height_method', 'hair_adds_height'], mRows))
   files.set(
     'photos.csv',
-    csv(['export_id', 'slot', 'file', 'width', 'height', 'bytes', 'taken_at', 'zoom', 'level_pitch_deg', 'level_roll_deg', 'head_top_y', 'heel_y', 'people_detected', 'faces_detected', 'a4_confirmed', 'blur_version'], fRows),
+    csv(['export_id', 'slot', 'file', 'width', 'height', 'bytes', 'taken_at', 'zoom', 'level_pitch_deg', 'level_roll_deg', 'head_top_y', 'heel_y', 'people_detected', 'faces_detected', 'a4_confirmed', 'blur_version', 'faces_ignored_on_body'], fRows),
   )
   const mapping = csv(['export_id', 'database_id'], [...ids.entries()].map(([db, eid]) => [eid, db]))
   return { files, mapping, counts }

@@ -74,7 +74,7 @@ const consents = await all<CRow>('consents', 'participant_id, consent_version')
 const measurements = await all<MRow>('measurements', 'participant_id, code, unit, readings_cm, value_cm, skipped, skip_reason, confirmed_unusual, height_method, hair_adds_height')
 const photos = await all<FRow>(
   'photos',
-  'participant_id, slot, width, height, bytes, taken_at, zoom, level_pitch, level_roll, head_top_y, heel_y, people_detected, faces_detected, a4_confirmed, blur_version, phone_model',
+  'participant_id, slot, width, height, bytes, taken_at, zoom, level_pitch, level_roll, head_top_y, heel_y, people_detected, faces_detected, a4_confirmed, blur_version, faces_ignored_on_body, phone_model',
 )
 const { data: approved, error: collectorsError } = await db.from('collectors').select('id').eq('status', 'approved').order('created_at')
 if (collectorsError) fail('could not read collectors')

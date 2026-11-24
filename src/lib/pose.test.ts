@@ -1,7 +1,7 @@
 /** F6 Amendment A: head boxes, framing check, head top and heels. Pure functions, no phone needed. */
 import { describe, expect, it } from 'vitest'
 import { person } from './__fixtures__/people'
-import { checkFraming, feetY, framingHint, headBox, headTopAndHeels, mainPerson, outlineTopBottom, type Mask } from './pose'
+import { checkFraming, feetY, framingHint, headBox, headTopAndHeels, mainPerson, outlineTopBottom, splitFacesOnBody, type Mask } from './pose'
 
 const W = 1200
 const H = 1600
@@ -115,5 +115,47 @@ describe('head top and heels, measured before the blur', () => {
   it('DENY: nothing usable → null', () => {
     const noFeet = person({ w: W, h: H, cx: 600, top: 100, bottom: 1500 }).map((pt, i) => (i >= 29 ? { x: NaN, y: NaN } : pt))
     expect(headTopAndHeels(noFeet, null, W, H)).toBeNull()
+  })
+})
+
+describe("Amendment C: no face on the participant's own body below the neck", () => {
+  // Participant 100–1500 px tall, centred at x 600; shoulders at y ≈ 352. Outline: x 450–750, y 100–1500.
+  const p = person({ w: W, h: H, cx: 600, top: 100, bottom: 1500 })
+  const mask: Mask = (() => {
+    const mw = 120
+    const mh = 160
+    const data = new Float32Array(mw * mh)
+    for (let r = 10; r < 150; r++) for (let c = 45; c < 75; c++) data[r * mw + c] = 1
+    return { data, width: mw, height: mh }
+  })()
+  const at = (cx: number, cy: number, s = 80) => ({ x: cx - s / 2, y: cy - s / 2, w: s, h: s })
+
+  it('ignores finds centred on the chest, hip, legs and feet inside the outline', () => {
+    const faces = [at(600, 600), at(700, 900), at(560, 1300), at(600, 1480)]
+    const r = splitFacesOnBody(faces, p, mask, W, H)
+    expect(r.ignored).toHaveLength(4)
+    expect(r.keep).toEqual([])
+  })
+
+  it('DENY: keeps finds on the head, above the shoulders, on the background and at the edges', () => {
+    const faces = [at(600, 200), at(600, 340), at(100, 1300), at(1150, 300), at(0, 0, 40)]
+    const r = splitFacesOnBody(faces, p, mask, W, H)
+    expect(r.ignored).toEqual([])
+    expect(r.keep).toEqual(faces)
+  })
+
+  it('DENY (fail closed): no outline, or a shoulder missing → nothing is ignored', () => {
+    const faces = [at(600, 600)]
+    expect(splitFacesOnBody(faces, p, null, W, H).keep).toEqual(faces)
+    const noShoulder = p.map((pt, i) => (i === 12 ? { x: NaN, y: NaN } : pt))
+    expect(splitFacesOnBody(faces, noShoulder, mask, W, H).keep).toEqual(faces)
+    expect(splitFacesOnBody(faces, p, { data: new Float32Array(0), width: 0, height: 0 }, W, H).keep).toEqual(faces)
+  })
+
+  it('below the lower shoulder only: a find at shoulder height inside the outline is kept', () => {
+    const tilted = p.map((pt, i) => (i === 11 ? { x: pt.x, y: 500 / H } : pt)) // one shoulder lower (y 500)
+    const r = splitFacesOnBody([at(600, 450), at(600, 560)], tilted, mask, W, H)
+    expect(r.keep).toEqual([at(600, 450)])
+    expect(r.ignored).toEqual([at(600, 560)])
   })
 })

@@ -1,6 +1,6 @@
 # F6: Camera and face blur
 
-**Status:** approved by Ryan, 11 Nov 2026 · **Amendment A (12 Nov 2026): approved by Ryan, 12 Nov 2026; built** · **Amendment B (18 Nov 2026): approved by Ryan, 18 Nov 2026; parts 1–2 built (`f6b-sensor-fix`), part 3 next**, see the end of this file <!-- draft | approved | built | verified — only Ryan sets "approved" -->
+**Status:** approved by Ryan, 11 Nov 2026 · **Amendment A (12 Nov 2026): approved by Ryan, 12 Nov 2026; built** · **Amendment B (18 Nov 2026): approved by Ryan, 18 Nov 2026; parts 1–2 built (`f6b-sensor-fix`), part 3 next** · **Amendment C (24 Nov 2026): approved by Ryan, 24 Nov 2026; built (`f6c-blur-body`), migration not applied**, see the end of this file <!-- draft | approved | built | verified — only Ryan sets "approved" -->
 **Milestone:** M5
 **Branch:** `f6-camera`
 
@@ -494,6 +494,79 @@ elbows, wrists, hips and ankles about 4 times a second. The auto-shutter also wa
 4. **Approved, sensor first** (18 Nov): parts 1–2 in a short pull request (`f6b-sensor-fix`, on
    top of `f8-admin-export`) so photos of already measured participants can go on; part 3 (posture)
    after.
+
+### Open questions for Ryan
+
+None.
+
+---
+
+## Amendment C (24 Nov 2026): blur lands on the body, not only the head, **approved by Ryan, 24 Nov 2026**
+
+### Why (Ryan's test photos, 24 Nov 2026; front, side and back, one practice volunteer)
+
+- The head was fully blurred in all three photos (good).
+- Extra blur blocks landed where there is no face:
+  - **side:** a block over the chest and upper arm, and one over the feet;
+  - **front:** a block over the right arm and hip, and one over the left leg and the door;
+  - **back:** a block over the lower left (door and the edge of the leg).
+- Blocks on the body hide the outline the model learns from (chest, waist, hip, arm, feet), so those
+  photos lose value. Privacy is not affected: every face was hidden.
+
+### Cause (from the code; no data read)
+
+The second blur layer (Amendment A, change 2) searches for faces over the **whole photo** in 15
+overlapping squares, with the face detector at a **low confidence (0.3)**, and blurs every box found,
+enlarged by 40%. Shirt prints, dark forearms, shoes and door panels pass that low bar. The head
+itself is blurred by the first layer (the body model), which worked in all three photos.
+
+### Changes
+
+1. **No "face" on the participant's own body.** A face box found by the detector is ignored when
+   its centre lies **inside the participant's body outline** (the body model's mask, already used
+   for head top and heels) **below the neck** (the shoulder line). A face can't be on someone's
+   chest, hip, legs or feet. Everything else stays as now:
+   - the participant's whole head: always blurred (body model);
+   - every other person's head: blurred (and the photo is refused anyway if a second person is found);
+   - face boxes on the background (walls, doors, people the body model missed): still blurred;
+   - the fixed face zone: still blurred.
+2. **Confidence 0.3 → 0.5** for the whole-photo face search, to cut false blocks on the background.
+   The exact value is set on Ryan's test photos (the 20-photo set, bystanders included): the
+   highest value that still finds every real face in them.
+3. Stored with each photo: `faces_ignored_on_body` (count), so photos can be checked later.
+   `blur_version` becomes 3.
+
+### Acceptance criteria (testable)
+
+- [ ] A detector box centred on the participant's body below the shoulders is not blurred; one on
+      the head, the background, or another person is.
+- [ ] No mask, no shoulders, or any error → nothing is ignored (fail closed: every box is blurred).
+- [ ] Ryan's 20 test photos again (bystanders included): **no recognisable face**, and **no blur
+      block on the participant's body below the neck**.
+
+### Tests to write
+
+| Test | Tool | Allow or deny |
+| --- | --- | --- |
+| Face box on chest / hip / feet inside the mask → ignored; on head, background, edge → blurred | Vitest | both |
+| No mask or no shoulder points → every box blurred | Vitest | deny |
+| `photos`: `faces_ignored_on_body`, `blur_version` 3 | PGlite | both |
+
+### Also seen in the photos (training, no code change)
+
+- **Shoes on** in all three (pink slip-ons). The protocol says barefoot: the heel point and height
+  in the photo depend on it.
+- **A4 sheet:** front, well placed (just in front of the toes, flat, fully visible). Side and back:
+  flat and visible, but about a foot away from the feet; put it **right beside the feet**.
+- **Poses:** front A-shape good (feet could be a little further apart); side pose correct (left side
+  to the camera, near arm forward at shoulder height); back good.
+- **Background:** a door and a laundry basket; a plain wall is better (fewer false blocks too).
+
+### Decided (Ryan, 24 Nov 2026)
+
+Approved as written. Built in `f6c-blur-body`: migration `20261124000000_f6c_blur_body.sql`
+(**not applied**: `supabase db push` after Ryan approves in chat). Version 2 photos still waiting
+on phones are sent as before; the export takes versions 2 and 3.
 
 ### Open questions for Ryan
 

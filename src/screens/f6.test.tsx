@@ -40,7 +40,7 @@ function fakeEnv(over: Partial<CameraEnv> = {}) {
         feed = null
       }
     }),
-    grab: vi.fn(async () => ({ jpeg: new Uint8Array([0xff, 0xd8, 0xff]), width: 1200, height: 1600, bytes: 3, facesDetected: 1, peopleDetected: 1, headTopY: 40, heelY: 1500, blurVersion: 2 as const })),
+    grab: vi.fn(async () => ({ jpeg: new Uint8Array([0xff, 0xd8, 0xff]), width: 1200, height: 1600, bytes: 3, facesDetected: 1, peopleDetected: 1, headTopY: 40, heelY: 1500, facesIgnoredOnBody: 0, blurVersion: 3 as const })),
     now: () => clock,
     phoneModel: null,
     ...over,

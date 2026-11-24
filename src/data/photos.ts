@@ -23,6 +23,7 @@ const columns = (m: PhotoMeta) => ({
   a4_confirmed: m.a4Confirmed,
   zoom: m.zoom,
   blur_version: m.blurVersion,
+  faces_ignored_on_body: m.facesIgnoredOnBody,
   people_detected: m.peopleDetected,
   face_hidden_confirmed: m.faceHiddenConfirmed,
   head_top_y: m.headTopY,

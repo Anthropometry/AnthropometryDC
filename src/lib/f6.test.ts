@@ -5,17 +5,17 @@ import { LIMITS, createSteadyTimer, isLevel, levelHint, tiltFromGravity, tiltFro
 import { boxesToBlur, detectArea, enlarge, faceZone, frameRect, mosaic, tiles, toFrame, type Pixels } from './blur'
 import { capture, CaptureRefused, isBlurred, type CameraTools, type PoseResult } from './capture'
 import { person } from './__fixtures__/people'
-import type { Person } from './pose'
+import type { Mask, Person } from './pose'
 import { ftinTyped, toldHeightTenths } from './measurements'
 
 afterEach(() => vi.restoreAllMocks())
 
 /** Fake camera tools: the given people; every face search returns `faces` (per tile). */
-function tools(people: Person[], faces: { x: number; y: number; w: number; h: number }[] = [], calls?: string[]): CameraTools {
+function tools(people: Person[], faces: { x: number; y: number; w: number; h: number }[] = [], calls?: string[], masks?: (Mask | null)[]): CameraTools {
   return {
     pose: async (): Promise<PoseResult> => {
       calls?.push('pose')
-      return { people, masks: people.map(() => null) }
+      return { people, masks: masks ?? people.map(() => null) }
     },
     faces: async () => {
       calls?.push('faces')
@@ -202,11 +202,50 @@ describe('capture (Amendment A): find every head, refuse when unsure, blur befor
     expect(calls.filter((c) => c === 'faces').length).toBe(tiles(W, H).length) // every tile searched
     expect(calls.slice(-4)).toEqual(['read', 'blurred', 'jpeg', 'cleared'])
     expect(calls.indexOf('jpeg')).toBeGreaterThan(calls.lastIndexOf('faces'))
-    expect(photo).toMatchObject({ width: W, height: H, peopleDetected: 1, blurVersion: 2, bytes: 5 })
+    expect(photo).toMatchObject({ width: W, height: H, peopleDetected: 1, blurVersion: 3, bytes: 5 })
     expect(photo.facesDetected).toBe(tiles(W, H).length) // the fake finds one per tile
     expect(photo.headTopY).toBeLessThan(120)
     expect(photo.heelY).toBe(1500)
     expect(isBlurred(photo)).toBe(true)
+  })
+
+  it('Amendment C: a find on the chest inside the outline is not blurred; one on the background is; counted', async () => {
+    const { flat } = fakeCanvas()
+    // Outline of the participant: x 450–750, y 100–1500 (mask 120 × 160, one cell = 10 px).
+    const mw = 120
+    const data = new Float32Array(mw * 160)
+    for (let r = 10; r < 150; r++) for (let c = 45; c < 75; c++) data[r * mw + c] = 1
+    const mask: Mask = { data, width: mw, height: 160 }
+    // The fake detector finds one "face" in tile 7 (chest, centre ≈ 600, 800) and one in tile 12 (door, ≈ 100, 1300).
+    let n = 0
+    const t: CameraTools = {
+      ...tools([participant()], [], undefined, [mask]),
+      faces: async () => {
+        const i = n++
+        if (i === 7) return [{ x: 108, y: 65, w: 40, h: 40 }]
+        if (i === 12) return [{ x: 23, y: 108, w: 40, h: 40 }]
+        return []
+      },
+    }
+    const photo = await capture({} as CanvasImageSource, 3000, 4000, t)
+    expect(photo.facesDetected).toBe(2)
+    expect(photo.facesIgnoredOnBody).toBe(1)
+    expect(photo.blurVersion).toBe(3)
+    expect([0, 1, 2, 3].every((d) => !flat(600 + d, 800))).toBe(true) // chest left sharp
+    expect([0, 1, 2, 3].some((d) => flat(100 + d, 1300))).toBe(true) // background find still blurred
+    expect([0, 1, 2, 3].some((d) => flat(600 + d, 200))).toBe(true) // the head, always
+  })
+
+  it('DENY Amendment C: without a body outline every find is blurred, the chest included', async () => {
+    const { flat } = fakeCanvas()
+    let n = 0
+    const t: CameraTools = {
+      ...tools([participant()]),
+      faces: async () => (n++ === 7 ? [{ x: 108, y: 65, w: 40, h: 40 }] : []),
+    }
+    const photo = await capture({} as CanvasImageSource, 3000, 4000, t)
+    expect(photo.facesIgnoredOnBody).toBe(0)
+    expect([0, 1, 2, 3].some((d) => flat(600 + d, 800))).toBe(true)
   })
 
   it('the 12 Nov failure: a person low in the frame has their face blurred (not just the outline zone)', async () => {

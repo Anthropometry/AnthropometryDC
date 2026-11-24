@@ -9,6 +9,7 @@
  */
 import type { FieldDb } from './consentQueue'
 import { isBlurred, type BlurredPhoto } from './capture'
+import { noReport, type Reporter } from './sync'
 
 export type PhotoSlot = 'front' | 'side' | 'back'
 export const PHOTO_SLOTS: readonly PhotoSlot[] = ['front', 'side', 'back']
@@ -144,9 +145,16 @@ const meta = (r: QueuedPhoto): PhotoMeta => ({
  * Send this collector's waiting photos, then the "done" marks whose photos are all in.
  * A failure for one participant (e.g. measurements not arrived yet) skips that participant only.
  */
-export async function flushPhotos(db: FieldDb, collectorId: string, api: PhotoApi): Promise<number> {
+export async function flushPhotos(
+  db: FieldDb,
+  collectorId: string,
+  api: PhotoApi,
+  report: Reporter = noReport,
+  skip: ReadonlySet<string> = new Set(),
+): Promise<number> {
   let sent = 0
-  const failed = new Set<string>()
+  const failed = new Set<string>(skip)
+  const okFor = new Set<string>()
   const rows = await db.photos.where('collectorId').equals(collectorId).toArray()
   for (const r of rows) {
     // Amendment A: a photo made with the old blur (it could miss a face) is never sent. It is deleted
@@ -174,11 +182,14 @@ export async function flushPhotos(db: FieldDb, collectorId: string, api: PhotoAp
         const now = await db.photos.get(r.key)
         if (now && now.takenAt === r.takenAt) await db.photos.delete(r.key)
       })
+      okFor.add(r.participantId)
       sent++
-    } catch {
+    } catch (e) {
       failed.add(r.participantId)
+      await report.fail('photo', r.participantId, e)
     }
   }
+  for (const id of okFor) if (!failed.has(id)) await report.ok('photo', id)
   const done = await db.photoDone.where('collectorId').equals(collectorId).toArray()
   for (const d of done) {
     if (failed.has(d.participantId)) continue
@@ -186,9 +197,10 @@ export async function flushPhotos(db: FieldDb, collectorId: string, api: PhotoAp
     try {
       await api.markDone(d.participantId)
       await db.photoDone.delete(d.participantId)
+      await report.ok('photo', d.participantId)
       sent++
-    } catch {
-      // try again later
+    } catch (e) {
+      await report.fail('photo', d.participantId, e)
     }
   }
   return sent

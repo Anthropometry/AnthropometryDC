@@ -86,14 +86,24 @@ export function ModeBanner({ real }: { real: boolean }) {
 }
 
 /** F2: what is waiting to upload. */
-export function SyncBadge({ online, waiting }: { online: boolean; waiting: number }) {
-  const [text, look] = !online
-    ? ['Offline: saved on this phone', 'bg-slate-200 text-slate-800']
-    : waiting > 0
-      ? [`${waiting} waiting to upload`, 'bg-amber-100 text-amber-900']
-      : ['All saved', 'bg-emerald-100 text-emerald-900']
+export function SyncBadge({ online, waiting, stuck = 0, onOpen }: { online: boolean; waiting: number; stuck?: number; onOpen?: () => void }) {
+  const [text, look] =
+    stuck > 0
+      ? [`${stuck} need${stuck > 1 ? '' : 's'} attention`, 'bg-red-100 text-red-900']
+      : !online
+        ? [waiting > 0 ? `Offline: ${waiting} saved on this phone` : 'Offline: saved on this phone', 'bg-slate-200 text-slate-800']
+        : waiting > 0
+          ? [`${waiting} waiting to upload`, 'bg-amber-100 text-amber-900']
+          : ['All saved', 'bg-emerald-100 text-emerald-900']
+  const cls = `self-start rounded-full px-3 py-1 text-sm font-semibold ${look}`
+  if (onOpen)
+    return (
+      <button type="button" aria-label={`Sync: ${text}. Open waiting to send`} onClick={onOpen} className={`${cls} underline-offset-2 hover:underline`}>
+        {text} ›
+      </button>
+    )
   return (
-    <p role="status" aria-label="Sync" className={`self-start rounded-full px-3 py-1 text-sm font-semibold ${look}`}>
+    <p role="status" aria-label="Sync" className={cls}>
       {text}
     </p>
   )

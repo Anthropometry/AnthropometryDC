@@ -7,6 +7,7 @@
  * Everything is kept per collector, like consents.
  */
 import type { FieldDb } from './consentQueue'
+import { noReport, type Reporter } from './sync'
 import { isAgeRange, rangeOf, type AgeRange, type Code, type Sex, type Unit } from './measurements'
 import type { AgeGroup } from './practice'
 
@@ -155,13 +156,24 @@ export async function waitingOps(db: FieldDb, collectorId: string): Promise<numb
 }
 
 /**
- * Send this collector's waiting changes in order; stop at the first failure (try again later).
+ * Send this collector's waiting changes in order. If one fails, the rest of that participant's
+ * changes wait (their order matters) and other participants still go (F7). Participants in `skip`
+ * (consent not arrived yet) are left for later without counting as a failure.
  * A finished participant's draft is removed once nothing for it is waiting.
  */
-export async function flushMeasurements(db: FieldDb, collectorId: string, api: MeasureApi): Promise<number> {
+export async function flushMeasurements(
+  db: FieldDb,
+  collectorId: string,
+  api: MeasureApi,
+  report: Reporter = noReport,
+  skip: ReadonlySet<string> = new Set(),
+): Promise<number> {
   const ops = await db.ops.where('collectorId').equals(collectorId).sortBy('seq')
   let sent = 0
+  const failed = new Set<string>()
+  const okFor = new Set<string>()
   for (const op of ops) {
+    if (skip.has(op.participantId) || failed.has(op.participantId)) continue
     try {
       if (op.kind === 'about') {
         const about = upgradeAbout(op.about)
@@ -172,14 +184,18 @@ export async function flushMeasurements(db: FieldDb, collectorId: string, api: M
       else if (op.kind === 'toldHeight') await api.saveToldHeight(op.participantId, op.typed, op.unit)
       else if (op.kind === 'toldWeight') await api.saveToldWeight(op.participantId, op.kg)
       else await api.finish(op.participantId)
-    } catch {
-      break
+    } catch (e) {
+      failed.add(op.participantId)
+      await report.fail('measurement', op.participantId, e)
+      continue
     }
     await db.ops.delete(op.seq!)
+    okFor.add(op.participantId)
     sent++
     if (op.kind === 'finish' && (await db.ops.where('participantId').equals(op.participantId).count()) === 0) {
       await db.drafts.delete(op.participantId)
     }
   }
+  for (const id of okFor) if (!failed.has(id)) await report.ok('measurement', id)
   return sent
 }

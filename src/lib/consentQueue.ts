@@ -3,13 +3,14 @@
  * Each job is sent in order: participant → consent → each signature (→ record its slot).
  * A job is deleted from the phone only after every step is confirmed by the server (POLICY §12).
  * Jobs are kept per collector, so nothing is sent under someone else's login on a shared phone.
- * The full upload queue (retries, Wi-Fi only) comes in F7.
+ * F7: one participant that fails no longer holds up the others; failures are reported (src/lib/sync.ts).
  */
 import Dexie, { type Table } from 'dexie'
 import type { Language } from './profile'
 import type { AgeGroup } from './practice'
 import type { MeasureDraft, MeasureOp } from './measureQueue'
 import type { PhotoDone, QueuedPhoto } from './photoQueue'
+import { noReport, type Reporter, type SyncIssue } from './sync'
 
 export type SignatureSlot = 'participant' | 'guardian' | 'assent'
 export const SIGNATURE_SLOTS: readonly SignatureSlot[] = ['participant', 'guardian', 'assent']
@@ -51,6 +52,8 @@ export class FieldDb extends Dexie {
   /** F6: blurred photos waiting to upload, and "photos done" marks. */
   photos!: Table<QueuedPhoto, string>
   photoDone!: Table<PhotoDone, string>
+  /** F7: participants whose sending keeps failing (never deletes anything else). */
+  issues!: Table<SyncIssue, string>
   constructor(name = 'anthro-collect') {
     super(name)
     this.version(1).stores({ jobs: 'participantId, collectorId, createdAt' })
@@ -65,6 +68,14 @@ export class FieldDb extends Dexie {
       ops: '++seq, collectorId, participantId',
       photos: 'key, collectorId, participantId',
       photoDone: 'participantId, collectorId',
+    })
+    this.version(4).stores({
+      jobs: 'participantId, collectorId, createdAt',
+      drafts: 'participantId, collectorId',
+      ops: '++seq, collectorId, participantId',
+      photos: 'key, collectorId, participantId',
+      photoDone: 'participantId, collectorId',
+      issues: 'key, collectorId, participantId',
     })
   }
 }
@@ -90,15 +101,20 @@ export async function waitingCount(db: FieldDb, collectorId: string): Promise<nu
   return db.jobs.where('collectorId').equals(collectorId).count()
 }
 
-/** Send everything waiting for this collector, oldest first. Stops at the first failure. Returns how many finished. */
-export async function flushConsents(db: FieldDb, collectorId: string, api: ConsentApi): Promise<number> {
+/**
+ * Send everything waiting for this collector, oldest first. A participant that fails is reported and
+ * tried again next round; the others still go (F7). Returns how many finished.
+ */
+export async function flushConsents(db: FieldDb, collectorId: string, api: ConsentApi, report: Reporter = noReport): Promise<number> {
   let finished = 0
   for (const job of await waitingJobs(db, collectorId)) {
     try {
       await sendJob(db, job, api)
-    } catch {
-      break
+    } catch (e) {
+      await report.fail('consent', job.participantId, e)
+      continue
     }
+    await report.ok('consent', job.participantId)
     finished++
   }
   return finished

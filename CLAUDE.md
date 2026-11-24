@@ -2,8 +2,10 @@
 
 Anthro Collect is a **student research project at Ashesi University**: a free-to-run field app
 that lets tailors and field agents in Ghana record consent, tape measurements and face-blurred
-photos for about 900 participants. Every screen, consent text, README and message frames the
-work this way.
+photos for about 900 participants. Every screen, README and message frames the
+work this way. Exception (Ryan, 24 Nov 2026): the consent text read to participants says
+"a student research project" and does not name Ashesi University, because tailors and other
+collectors read it aloud.
 
 ## Every session
 

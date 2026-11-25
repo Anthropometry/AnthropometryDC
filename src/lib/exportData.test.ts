@@ -1,6 +1,6 @@
 /** F8 research export on fake data only: files, columns, exclusions, export ids, checks. */
 import { describe, expect, it, vi } from 'vitest'
-import { buildExport, csv, dataFolderProblem, ExportProblem, type ExportInput, type FRow, type MRow, type PRow } from './exportData'
+import { buildExport, csv, dataFolderProblem, EXPORT_FORMAT, ExportProblem, type ExportInput, type FRow, type MRow, type PRow } from './exportData'
 
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3])
 
@@ -64,6 +64,15 @@ describe('research export', () => {
     expect(photosCsv).toMatch(/exp-1,front,.*,true,2,$/m)
     expect(photosCsv).toMatch(/exp-1,side,.*,true,3,2$/m)
     expect(JSON.parse(r.files.get('metadata/exp-1.json') as string).measurements).toHaveLength(2)
+    // Format version (Ryan, 25 Nov): one README line, and the first field of every metadata file.
+    expect(EXPORT_FORMAT).toBe('anthro-export/1')
+    expect((r.files.get('README.txt') as string).split('\n')).toContain('Format: anthro-export/1 (defined in docs/EXPORT_FORMAT.md in the Anthro Collect repository)')
+    for (const [k, v] of r.files) {
+      if (!k.startsWith('metadata/')) continue
+      const meta = JSON.parse(v as string)
+      expect(Object.keys(meta)[0]).toBe('format')
+      expect(meta.format).toBe('anthro-export/1')
+    }
     expect(r.mapping).toBe('export_id,database_id\nexp-1,real-1\nexp-2,real-2\n')
   })
 

@@ -33,7 +33,7 @@ collectors read it aloud.
 
 [docs/MISSION.md](docs/MISSION.md) · [docs/TECH_STACK.md](docs/TECH_STACK.md) ·
 [docs/ROADMAP.md](docs/ROADMAP.md) · [docs/SECURITY.md](docs/SECURITY.md) ·
-[docs/TESTING.md](docs/TESTING.md) · [docs/ADMIN.md](docs/ADMIN.md) (Ryan's dashboard and SQL steps) · full plan [docs/NORTH_ANCHOR.md](docs/NORTH_ANCHOR.md)
+[docs/TESTING.md](docs/TESTING.md) · [docs/EXPORT_FORMAT.md](docs/EXPORT_FORMAT.md) (research export, versioned) · [docs/ADMIN.md](docs/ADMIN.md) (Ryan's dashboard and SQL steps) · full plan [docs/NORTH_ANCHOR.md](docs/NORTH_ANCHOR.md)
 
 ## Commands
 

@@ -195,7 +195,9 @@ describe('F3 Practice screens', () => {
   it('PRACTICE banner; age group needed; shows the practice number', async () => {
     const create = vi.fn(async () => ({ practiceNo: 7 }))
     render(<PracticeNew create={create} onList={vi.fn()} onBack={vi.fn()} />)
-    screen.getByText('PRACTICE · not real data')
+    screen.getByText('PILOT DATA')
+    // DENY (Ryan, 25 Nov): test-phase data may be used later, so no screen says it is "not real data".
+    expect(screen.queryByText(/not real data/i)).toBeNull()
     expect((screen.getByRole('button', { name: 'Start practice' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'Under 18' }))
     fireEvent.click(screen.getByRole('button', { name: 'Start practice' }))

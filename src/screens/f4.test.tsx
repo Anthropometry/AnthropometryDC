@@ -50,7 +50,7 @@ const nextBtn = (name: RegExp | string) => screen.getByRole('button', { name }) 
 describe('F4 consent: adult', () => {
   it('Save stays off until both ticks, a name and a signature; then saves and shows the receipt', async () => {
     const { onSave } = renderFlow()
-    screen.getByText('PRACTICE · not real data')
+    screen.getByText('PILOT DATA')
     fireEvent.click(screen.getByRole('button', { name: 'Adult (18 or older)' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next: consent' }))
     screen.getByText(/Anthro Collect is a student research project. We are building/)

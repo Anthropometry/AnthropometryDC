@@ -72,7 +72,11 @@ export function OfflineBanner({ online }: { online: boolean }) {
   )
 }
 
-/** F3: always on collection screens, never hidden. */
+/**
+ * F3: always on collection screens, never hidden. Test-phase participants (`is_practice`) show
+ * PILOT DATA (Ryan, 25 Nov 2026): the consent says their data may be used later if the ethics
+ * committee allows it, so the banner no longer says "not real data".
+ */
 export function ModeBanner({ real }: { real: boolean }) {
   return real ? (
     <p role="note" className="rounded-lg bg-emerald-700 p-3 text-center font-bold tracking-wide text-white">
@@ -80,7 +84,7 @@ export function ModeBanner({ real }: { real: boolean }) {
     </p>
   ) : (
     <p role="note" className="rounded-lg bg-amber-400 p-3 text-center font-bold tracking-wide text-amber-950">
-      PRACTICE · not real data
+      PILOT DATA
     </p>
   )
 }

@@ -110,3 +110,15 @@ No names anywhere (names only come with consent in F4). No measurements or photo
 3. **Practice data at Gate B:** deleted with a SQL step in docs/ADMIN.md when collection opens.
 4. **Practice after opening:** stays available; the banner always shows the mode.
 
+
+---
+
+## Amendment A (25 Nov 2026): banner reads PILOT DATA, **approved by Ryan, 25 Nov 2026**
+
+The test-phase banner said "PRACTICE · not real data". Since 18 Nov the practice consent tells
+participants that, if the data is good enough, some of it may be used in the research, but only if
+the ethics committee allows it (DISCUSSION.md). The banner now reads **PILOT DATA**, so the screens
+don't contradict the consent. Nothing else changes: test-phase participants stay `is_practice`, the
+database still refuses real participants until `collection_open` is switched on after IRB approval,
+and the research export still leaves them out (only a `--include-practice` test export has them,
+marked PRACTICE). Built in `f3b-pilot-banner`.

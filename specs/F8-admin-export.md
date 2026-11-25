@@ -207,3 +207,14 @@ WhatsApp buttons; "nothing sent for 5 days".
    is the one exception, and only because it is encrypted.)
 8. ~~Call / WhatsApp buttons~~ **Decided (Ryan, 13 Nov): yes.** Still open: is **5 days** right for
    "nothing sent for 5 days"?
+
+---
+
+## Amendment A (25 Nov 2026): versioned export format, **approved by Ryan, 25 Nov 2026**
+
+The export format is written down in [docs/EXPORT_FORMAT.md](../docs/EXPORT_FORMAT.md) as
+**`anthro-export/1`**, so other code can match it exactly. Every export stamps its version: one line
+in `README.txt` (`Format: anthro-export/1 …`) and `"format": "anthro-export/1"` as the first field of
+every `metadata/<export_id>.json`. Any later change to files, columns, units, allowed values or
+meanings bumps the number and adds a change-log line to that file. No data, column or file changes
+otherwise. Built in `f8b-export-format`.

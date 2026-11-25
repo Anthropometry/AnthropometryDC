@@ -105,8 +105,16 @@ export function csv(header: string[], rows: (string | number | boolean | null | 
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : '')
 const n = (v: number | string | null | undefined) => (v === null || v === undefined || v === '' ? null : Number(v))
 
+/**
+ * The export format's name and version (Ryan, 25 Nov 2026), defined in docs/EXPORT_FORMAT.md.
+ * Stamped in README.txt and every metadata/*.json. Any change to files, columns, units or meanings
+ * bumps the number and adds a line to the doc's change log.
+ */
+export const EXPORT_FORMAT = 'anthro-export/1'
+
 export const README = (i: { exportedAt: Date; includePractice: boolean; counts: ExportResult['counts'] }) => `Anthro Collect research dataset
 A student research project at Ashesi University.
+Format: ${EXPORT_FORMAT} (defined in docs/EXPORT_FORMAT.md in the Anthro Collect repository)
 Exported: ${i.exportedAt.toISOString()}
 ${i.includePractice ? '\n*** INCLUDES PRACTICE RECORDS (marked practice = true). NOT FOR RESEARCH. ***\n' : ''}
 Participants: ${i.counts.participants}   Measurements: ${i.counts.measurements}   Photos: ${i.counts.photos}
@@ -132,7 +140,7 @@ photos.csv  one row per photo
   (2 or 3), faces_ignored_on_body (version 3: face-detector finds on the participant's body below
   the neck, not blurred; empty for version 2)
 images/<export_id>/front.jpg, side.jpg, back.jpg   3:4 portrait JPEGs, head blurred
-metadata/<export_id>.json   everything above for one participant
+metadata/<export_id>.json   "format" (as above), then everything above for one participant
 `
 
 export async function buildExport(
@@ -228,7 +236,7 @@ export async function buildExport(
       photos.push(photo)
       fRows.push([eid, ...Object.values(photo)])
     }
-    files.set(`metadata/${eid}.json`, JSON.stringify({ participant, measurements, photos }, null, 2) + '\n')
+    files.set(`metadata/${eid}.json`, JSON.stringify({ format: EXPORT_FORMAT, participant, measurements, photos }, null, 2) + '\n')
   }
 
   const counts = { participants: people.length, measurements: mRows.length, photos: fRows.length, practice: people.filter((p) => p.is_practice).length }
